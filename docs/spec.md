@@ -2,7 +2,7 @@
 
 ## Introduction & Goals
 
-The csaf-cms-frontend is the web-based user interface for managing CSAF security advisories in the CSAF CMS. It lets users create, edit, and review advisories through a guided workflow, embedding the secvisogram editor as a self-contained custom element (<secvisogram-editor>) for form- and source-based CSAF editing. The application is implemented as a single-page application in TypeScript, React, and Tailwind CSS, using client-side routing (react-router) and communicating with the csaf-cms-backend over its REST API for advisory storage, templates, and workflow state.
+The csaf-cms-frontend is the web-based user interface for managing CSAF security advisories in the CSAF CMS. It lets users create, edit, and review advisories through a guided workflow, embedding the secvisogram editor as a self-contained custom element (`<secvisogram-editor>`) for form- and source-based CSAF editing. The application is implemented as a single-page application in TypeScript, React, and Tailwind CSS, using client-side routing (react-router) and communicating with the csaf-cms-backend over its REST API for advisory storage, templates, and workflow state.
 
 ## Constraints
 
@@ -10,35 +10,35 @@ The csaf-cms-frontend is the web-based user interface for managing CSAF security
 
 | Constraint                                                                       | Explanation                                                                                                                                                                                                                                                                              |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stack: TypeScript, React, Tailwind CSS                                           | Chosen to match secvisogram's own stack, easing embedding of a React-authored custom element and sharing tooling/knowledge (CONCEPT.md §1).                                                                                                                                              |
+| Stack: TypeScript, React, Tailwind CSS                                           | Chosen to match secvisogram's own stack.                                                                                                                                                                                                                                                 |
 | Single-page application, client-side routing                                     | Must use react-router for navigation; no server-side routing.                                                                                                                                                                                                                            |
 | Editor is embedded only as `<secvisogram-editor>` custom element in a Shadow DOM | The editor is out-of-tree, framework/version-independent, and must be treated as a replaceable black box addressed only via its documented properties (`doc`, `schemaVersion`, `locale`, `validatorUrl`) and events (`csaf-change`, `csaf-validate`); never via direct imports/coupling. |
 | No build-time dependency on secvisogram                                          | The editor bundle (`secvisogram-editor.js`) is loaded at runtime via a static `<script>` tag from wherever it's hosted (own static assets or CDN), not as an npm package.                                                                                                                |
-| No direct network edge from the embedded editor to csaf-cms-backend              | csaf-cms-frontend must own 100% of backend/auth calls (session, dashboard, CRUD, workflow, templates); the only exception is the editor's own direct call to the separate validator microservice.                                                                                        |
+| No direct network edge from the embedded editor to csaf-cms-backend              | csaf-cms-frontend must own backend/auth calls (session, dashboard, CRUD, workflow, templates); the only exception is the editor's own direct call to the separate validator microservice.                                                                                                |
 | CSS isolation via Shadow DOM                                                     | Host and editor styles (Tailwind) should leak across the shadow boundary in either direction. (Some CSS properties are inherited e.g. `color` or custom properties)                                                                                                                      |
 
 ### Organizational / Political Constraints
 
-| Constraint                                       | Explanation                                                                                                                                                                                  |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Split of responsibility between two repositories | `csaf-cms-frontend` (this repo, CMS shell/auth/dashboard) and secvisogram (pure, backend-free editor) are maintained as separate codebases/release cycles by design — not a temporary state. |
+| Constraint                                       | Explanation                                                                                                                                                            |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Split of responsibility between two repositories | `csaf-cms-frontend` (this repo, CMS shell/auth/dashboard) and `secvisogram` (pure, backend-free editor) are maintained as separate codebases/release cycles by design. |
 
 ### Conventions
 
-| Convention                   | Explanation                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------------ |
-| Prettier for code formatting | Matches formatting conventions used across the other secvisogram-family repos. |
-| MIT license                  | Matches the other projects in the ecosystem.                                   |
+| Convention                | Explanation                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Oxfmt for code formatting | Is compatible to prettier and the formatting conventions used across the other secvisogram-family repos. |
+| MIT license               | Matches the other projects in the ecosystem.                                                             |
 
 ## Context and Scope
 
 ### Context diagram
 
-<img style="max-width: 60rem" src="architecture-constraints.png">
+<img style="max-width: 60rem" src="context.png">
 
 ### Business context
 
-Domain-level interactions — what data/intent crosses the system boundary, independent of protocol:
+Domain-level interactions; what data/intent crosses the system boundary, independent of protocol:
 
 | Communication partner           | Interaction                                                                                                                                                                                                                         |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -64,8 +64,8 @@ Note: csaf-cms-backend is explicitly out of scope for this system (external, unc
 
 ### Key decisions
 
-- **Technology**: TypeScript, React, and Tailwind CSS — chosen to match secvisogram's own stack, minimizing friction when embedding a React-authored custom element and letting both repos share tooling/conventions.
-- **Top-level decomposition**: Split the former monolithic secvisogram app into two independently deployable systems along a domain seam — CMS concerns (auth, dashboard, workflow, templates) vs. pure CSAF-document editing. The two communicate only through a narrow, versioned **custom-element contract** (`<secvisogram-editor>`: properties in, DOM events out), never through shared imports or runtime state — this is effectively a "micro-frontend via Web Components" pattern, not a shared React tree.
+- **Technology**: TypeScript, React, and Tailwind CSS; chosen to match secvisogram's own stack.
+- **Top-level decomposition**: Split the former monolithic secvisogram app into two independently deployable systems. CMS concerns (auth, dashboard, workflow, templates) vs. pure CSAF-document editing. The two communicate only through a narrow, versioned **custom-element contract** (`<secvisogram-editor>`: properties in, DOM events out), never through shared imports or runtime state.
 - **Runtime, not build-time, integration**: The editor bundle is loaded via a static `<script>` tag at runtime rather than an npm dependency, so the two repos can be built, versioned, and released independently.
 - **Ownership of backend access**: All csaf-cms-backend/auth calls are centralized in csaf-cms-frontend; the embedded editor is deliberately backend-free (one narrow exception: it calls the external validator microservice directly).
 - **Organizational**: csaf-cms-backend is treated as a fixed, externally-owned dependency; no new backend endpoints are assumed, so this system must be built entirely against today's existing API surface.
@@ -75,7 +75,7 @@ Note: csaf-cms-backend is explicitly out of scope for this system (external, unc
 | Quality goal                                                 | Scenario                                                                                 | Solution approach                                                                                                                                                             |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Reusability / replaceability of the editor                   | Another editor interface is developed and shall be integrated into the csaf-cms-frontend | Editor packaged as a self-contained Shadow-DOM custom element with only a `doc`/`schemaVersion`/`locale`/`validatorUrl` and event contract, no CMS-domain knowledge inside it |
-| Security / minimal trust surface for third-party editor code | Editor must never see CMS session cookies/tokens or call the backend itself              | csaf-cms-frontend owns 100% of auth/session and all backend calls; editor has zero network edge to csaf-cms-backend                                                           |
+| Security / minimal trust surface for third-party editor code | Editor must never see CMS session cookies/tokens or call the backend itself              | csaf-cms-frontend owns auth/session and all backend calls; editor has no network edge to csaf-cms-backend                                                                     |
 | Style isolation                                              | Host and editor use independent Tailwind builds that must not clash                      | Shadow DOM boundary with `adoptedStyleSheets`-based CSS injection into the shadow root                                                                                        |
 | Independent release cadence / maintainability                | Editor and CMS shell evolve at different speeds without cross-repo coordination overhead | Two separate repositories, no build-time dependency; editor loaded at runtime via `<script>` tag                                                                              |
 | Low integration risk against an unchanging backend           | csaf-cms-backend cannot be modified for this project                                     | Build entirely against the existing, documented API surface (advisories CRUD, workflow-state, templates)                                                                      |
@@ -166,21 +166,21 @@ flowchart TB
 
 ### Mapping of building blocks to infrastructure
 
-| Building block                                                     | Infrastructure node                                                               | Notes                                                                                                                                                                                        |
-| ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| csaf-cms-frontend (CMS shell: auth, dashboard, edit-advisory page) | Web server / CDN node A, served statically                                        | Built as a static SPA bundle (Vite), same "build once, serve via nginx/CDN" pattern as secvisogram today; no server-side runtime component.                                                  |
-| `<secvisogram-editor>` bundle (`secvisogram-editor.js`)            | Web server / CDN node B (can be co-located with node A, or a separate origin/CDN) | Produced by secvisogram's own build pipeline as a new library/custom-element target, deployed independently of csaf-cms-frontend — no build-time coupling, loaded at runtime via `<script>`. |
-| csaf-cms-backend                                                   | Existing, externally operated backend server                                      | Out of scope for this system's deployment; only its API surface is a dependency.                                                                                                             |
-| Validator microservice                                             | Existing, externally operated server (separate origin)                            | Optional; only reachable if `validatorUrl` is configured; called directly by the embedded editor, not proxied through csaf-cms-frontend.                                                     |
+| Building block                                                     | Infrastructure node                                                               | Notes                                                                                                                                                                                       |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| csaf-cms-frontend (CMS shell: auth, dashboard, edit-advisory page) | Web server / CDN node A, served statically                                        | Built as a static SPA bundle (Vite); no server-side runtime component.                                                                                                                      |
+| `<secvisogram-editor>` bundle (`secvisogram-editor.js`)            | Web server / CDN node B (can be co-located with node A, or a separate origin/CDN) | Produced by secvisogram's own build pipeline as a new library/custom-element target, deployed independently of csaf-cms-frontend; no build-time coupling, loaded at runtime via `<script>`. |
+| csaf-cms-backend                                                   | Existing, externally operated backend server                                      | Out of scope for this system's deployment; only its API surface is a dependency.                                                                                                            |
+| Validator microservice                                             | Existing, externally operated server (separate origin)                            | Optional; only reachable if `validatorUrl` is configured; called directly by the embedded editor, not proxied through csaf-cms-frontend.                                                    |
 
 ### Environments
 
-| Environment | Difference from production                                                                                                                                                                                                                                                                                                                                           |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Development | Vite dev server (`npm run dev`-style) with hot reload; `secvisogram-editor.js` likely loaded from a local secvisogram dev build or a dev/staging static host; backend/validator URLs point at dev/staging instances.                                                                                                                                                 |
-| Production  | Static build artifacts only (no framework dev server); served behind a hardened webserver (TLS, HSTS, CSP, `X-Frame-Options`, etc. — see the nginx template already documented for secvisogram in DEVELOPMENT.md); CSP `script-src`/`connect-src` must explicitly allow the origin(s) hosting `secvisogram-editor.js` and the configured `validatorUrl`/backend API. |
+| Environment | Difference from production                                                                                                                                                                                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Development | Vite dev server (`npm run dev`-style) with hot reload; `secvisogram-editor.js` likely loaded from a local secvisogram dev build or a dev/staging static host; backend/validator URLs point at dev/staging instances.                                                                                                                                                |
+| Production  | Static build artifacts only (no framework dev server); served behind a hardened webserver (TLS, HSTS, CSP, `X-Frame-Options`, etc.; see the nginx template already documented for secvisogram in DEVELOPMENT.md); CSP `script-src`/`connect-src` must explicitly allow the origin(s) hosting `secvisogram-editor.js` and the configured `validatorUrl`/backend API. |
 
-**Cross-cutting note for later Section 8**: since the editor bundle and its CSP-relevant origins are now a runtime dependency rather than a build-time one, csaf-cms-frontend's Content-Security-Policy needs deliberate `script-src`/`style-src`/`connect-src` entries for wherever `secvisogram-editor.js` and the validator service are hosted — worth flagging explicitly once those origins are finalized.
+**Cross-cutting note for later Section 8**: since the editor bundle and its CSP-relevant origins are now a runtime dependency rather than a build-time one, csaf-cms-frontend's Content-Security-Policy needs deliberate `script-src`/`style-src`/`connect-src` entries for wherever `secvisogram-editor.js` and the validator service are hosted.
 
 ## Crosscutting Concepts
 
@@ -190,13 +190,13 @@ The most cross-cutting concept in this system: csaf-cms-frontend treats the edit
 
 Rules:
 
-- The host may only communicate through the documented properties/events; never by reaching into the shadow root's internals.
+- The host may only communicate through the documented properties/events.
 - Property writes on a freshly created element must wait for `customElements.whenDefined('secvisogram-editor')`, otherwise writes risk being lost on an un-upgraded element.
-- Re-setting `doc` always means "load a new document" (resets internal state/undo history) — never an incremental patch; incremental edits only ever flow host-ward via `csaf-change`.
+- Re-setting `doc` always means "load a new document" (resets internal state/undo history); incremental edits only ever flow host-ward via `csaf-change`.
 
 ### Security Concept
 
-- **Auth/session ownership** is 100% centralized in csaf-cms-frontend; the embedded editor never receives cookies/tokens and never calls csaf-cms-backend directly.
+- **Auth/session ownership** is centralized in csaf-cms-frontend; the embedded editor never receives cookies/tokens and never calls csaf-cms-backend directly.
 - **Content-Security-Policy**: `script-src`/`connect-src`/`style-src` must explicitly allowlist the origin(s) serving `secvisogram-editor.js` and `validatorUrl`; otherwise follow the CSP/HSTS/`X-Frame-Options` hardening template already used for secvisogram (see `DEVELOPMENT.md` in the secvisogram repo).
 - The editor's one direct external call (to the validator microservice) is a deliberate, narrowly scoped exception.
 - **XSS mitigation**: rely on React's JSX auto-escaping throughout; `dangerouslySetInnerHTML` (or equivalent) is only permitted where a component genuinely needs raw HTML (e.g. CSAF preview rendering) and only after explicit sanitization.
@@ -218,7 +218,7 @@ Both layers report into the same `csaf-validate { errors, valid }` event, so csa
 
 ### Internationalization Concept
 
-The embedded editor bundles its own independent i18next instance and dictionaries (no runtime locale fetch) and only ever receives a `locale` property from the host. It never reports its translation state back. csaf-cms-frontend therefore maintains its own, entirely separate i18n stack for CMS-shell strings (login, dashboard, workflow) and only passes a matching locale code across the boundary; string content is never shared or overridden across it.
+The embedded editor bundles its own independent i18next instance and dictionaries (no runtime locale fetch) and only ever receives a `locale` property from the host. It never reports its translation state back. csaf-cms-frontend therefore maintains its own, entirely separate i18n stack for CMS-shell strings (login, dashboard, workflow) and only passes a matching locale code across the boundary.
 
 ### Error Handling & User Feedback Concept
 
@@ -264,7 +264,7 @@ A single, consistent notification/toast pattern is used across the CMS shell for
 
 **Context**: The former monolith called the CSAF CMS backend from many places throughout the editor UI. With the split, some component needs to own auth/session and every backend call. Candidates: let the embedded editor keep some backend calls itself (e.g. save/workflow-state) with csaf-cms-frontend only handling auth, or centralize all backend/auth calls in csaf-cms-frontend and make the editor entirely backend-free.
 
-**Decision**: csaf-cms-frontend owns 100% of auth/session and backend calls; the embedded editor has zero network edge to csaf-cms-backend (Solution Strategy; Security Concept). The one deliberate exception is the editor's own direct call to the separate validator microservice, which is not the CMS backend.
+**Decision**: csaf-cms-frontend owns auth/session and backend calls; the embedded editor has no network edge to csaf-cms-backend (Solution Strategy; Security Concept). The one deliberate exception is the editor's own direct call to the separate validator microservice, which is not the CMS backend.
 
 **Consequences**:
 
@@ -301,6 +301,8 @@ A single, consistent notification/toast pattern is used across the CMS shell for
 
 ## Quality Requirements
 
+_TBD_
+
 ## Risks and Technical Debt
 
 Ordered by priority (highest first):
@@ -313,6 +315,4 @@ Ordered by priority (highest first):
 
 ## Glossary
 
-| Term | Definition       |
-| ---- | ---------------- |
-| CCF  | CSAF CMS Backend |
+_TBD_

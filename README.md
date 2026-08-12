@@ -21,10 +21,9 @@ See [docs/spec.md](docs/spec.md) for the full architecture documentation (contex
 
 ## Project structure
 
-- `app/` — application code: `root.tsx` (HTML shell), `App.tsx` (layout with the error/warning/info toolbar), `routes.ts` (route table), `routes/` (`AdvisoryDashboard.tsx` — advisory list, `EditPage.tsx` — hosts the `<secvisogram-editor>` element)
-- `docs/` — architecture documentation (`spec.md`)
-- `secvisogram-mock/` — dev-only stub of the `<secvisogram-editor>` custom element, loaded only in `npm run dev` so the app is runnable without the
-  real `secvisogram-editor.js` bundle present
+- `app/` - application code
+- `docs/` - architecture documentation (`spec.md`)
+- `secvisogram-mock/` - dev-only stub of the `<secvisogram-editor>` custom element, loaded only in `npm run dev` so the app is runnable without the real `secvisogram-editor.js` bundle present
 
 ## Getting started
 

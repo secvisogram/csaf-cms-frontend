@@ -1,15 +1,15 @@
 {
   "name": "@secvisogram/csaf-cms-frontend",
   "private": true,
+  "keywords": [],
+  "license": "MIT",
+  "author": "eXXcellent solutions GmbH",
+  "type": "module",
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build && rm -r build/client/secvisogram-mock",
     "typecheck": "react-router typegen && tsc -b ."
   },
-  "keywords": [],
-  "author": "eXXcellent solutions GmbH",
-  "license": "MIT",
-  "type": "module",
   "dependencies": {
     "@react-router/node": "^8",
     "@react-router/serve": "^8",
@@ -24,7 +24,8 @@
     "@types/node": "^22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "prettier": "^3.9.6",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^7.0.2",
     "vite": "^8.0.3"

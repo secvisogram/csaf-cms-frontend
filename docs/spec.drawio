@@ -191,8 +191,8 @@
         <mxCell id="lZcZnbS1BWHnwajvhOAC-10" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" value="csaf-cms-backend" vertex="1">
           <mxGeometry height="100" width="118" x="1510" y="840" as="geometry" />
         </mxCell>
-        <mxCell id="lZcZnbS1BWHnwajvhOAC-11" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" value="csaf-cms-backend" vertex="1">
-          <mxGeometry height="100" width="118" x="1161.5" y="1110" as="geometry" />
+        <mxCell id="lZcZnbS1BWHnwajvhOAC-11" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" value="csaf-validator-service" vertex="1">
+          <mxGeometry height="100" width="130" x="1161.5" y="1110" as="geometry" />
         </mxCell>
         <mxCell id="lZcZnbS1BWHnwajvhOAC-12" edge="1" parent="1" source="lZcZnbS1BWHnwajvhOAC-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="lZcZnbS1BWHnwajvhOAC-11">
           <mxGeometry relative="1" as="geometry" />
