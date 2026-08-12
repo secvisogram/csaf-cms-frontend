@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+@layer components {
+  .fa-xs {
+    font-size: 0.75em;
+    line-height: 0.0833333337em;
+    vertical-align: 0.125em;
+  }
+
+  .svg-inline--fa {
+    display: var(--fa-display, inline-block);
+    height: 1em;
+    overflow: visible;
+    vertical-align: -0.125em;
+  }
+
+  svg:not(:root).svg-inline--fa,
+  svg:not(:host).svg-inline--fa {
+    overflow: visible;
+    box-sizing: content-box;
+  }
+
+  .svg-inline--fa.fa-xs {
+    vertical-align: 0em;
+  }
+}
