@@ -15,7 +15,7 @@ The csaf-cms-frontend is the web-based user interface for managing CSAF security
 | Editor is embedded only as `<secvisogram-editor>` custom element in a Shadow DOM | The editor is out-of-tree, framework/version-independent, and must be treated as a replaceable black box addressed only via its documented properties (`doc`, `schemaVersion`, `locale`, `validatorUrl`) and events (`csaf-change`, `csaf-validate`); never via direct imports/coupling. |
 | No build-time dependency on secvisogram                                          | The editor bundle (`secvisogram-editor.js`) is loaded at runtime via a static `<script>` tag from wherever it's hosted (own static assets or CDN), not as an npm package.                                                                                                                |
 | No direct network edge from the embedded editor to csaf-cms-backend              | csaf-cms-frontend must own backend/auth calls (session, dashboard, CRUD, workflow, templates); the only exception is the editor's own direct call to the separate validator microservice.                                                                                                |
-| CSS isolation via Shadow DOM                                                     | Host and editor styles (Tailwind) should leak across the shadow boundary in either direction. (Some CSS properties are inherited e.g. `color` or custom properties)                                                                                                                      |
+| CSS isolation via Shadow DOM                                                     | Host and editor styles (Tailwind) should not leak across the shadow boundary in either direction. (Some CSS properties are inherited e.g. `color` or custom properties)                                                                                                                  |
 
 ### Organizational / Political Constraints
 
@@ -42,7 +42,7 @@ Domain-level interactions; what data/intent crosses the system boundary, indepen
 
 | Communication partner           | Interaction                                                                                                                                                                                                                         |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| User (advisory author/reviewer) | Logs in; browses/creates/edits/deletes advisories; changes workflow state (Draft → Review → Published); picks a template; edits the CSAF document itself (delegated to the embedded editor); triggers Save.                         |
+| User (advisory author/reviewer) | Logs in; browses/creates/edits/deletes advisories; changes workflow state; picks a template; edits the CSAF document itself (delegated to the embedded editor); triggers Save.                                                      |
 | csaf-cms-backend                | Authoritative store of advisories (CSAF doc and metadata: id, revision, workflow state, owner) and templates; owns login/session and permission/role decisions; the sole system of record the frontend must read from and write to. |
 
 ### Technical context
@@ -58,7 +58,7 @@ Channels, protocols, and interfaces:
 | `<secvisogram-editor>` (embedded custom element)         | In-process, JS properties/DOM events (no network)                                        | Properties in: `doc`, `schemaVersion`, `locale`, `validatorUrl`. Events out: `csaf-change { doc }`, `csaf-validate { errors, valid }`.                                                                                                                                    |
 | Validator microservice                                   | HTTPS, REST, JSON — **called directly by the embedded editor, not by csaf-cms-frontend** | `POST {validatorUrl}/api/v1/validate`. Included here because it's reachable from within the system's UI, even though csaf-cms-frontend itself never talks to it directly.                                                                                                 |
 
-Note: csaf-cms-backend is explicitly out of scope for this system (external, unchanged — see CONCEPT.md); csaf-cms-frontend's job is to be a complete, correct client against its existing API surface, not to influence its design.
+Note: csaf-cms-backend is explicitly out of scope for this system; csaf-cms-frontend's job is to be a complete, correct client against its existing API surface, not to influence its design.
 
 ## Solution Strategy
 
@@ -136,33 +136,7 @@ sequenceDiagram
 
 ### Deployment diagram (production)
 
-```mermaid
-flowchart TB
-    subgraph clientDevice["Client device"]
-        browser["Browser\n(runs csaf-cms-frontend SPA +\n&lt;secvisogram-editor&gt; in Shadow DOM)"]
-    end
-
-    subgraph webServer1["Web server / CDN node A"]
-        cmsStatic["csaf-cms-frontend static build\n(index.html, JS/CSS bundles)"]
-    end
-
-    subgraph webServer2["Web server / CDN node B\n(may be same host as A)"]
-        editorBundle["secvisogram-editor.js\n(secvisogram's library build,\nstatic asset, own dist/ output)"]
-    end
-
-    subgraph backendServer["csaf-cms-backend server\n(existing, external, unchanged)"]
-        backendApi["REST API\n(advisories, auth, templates, workflow-state)"]
-    end
-
-    subgraph validatorServer["Validator microservice server\n(existing, external, optional)"]
-        validatorApi["POST /api/v1/validate"]
-    end
-
-    browser -- "HTTPS GET /\n(initial page load)" --> cmsStatic
-    browser -- "HTTPS GET secvisogram-editor.js\n(runtime &lt;script&gt; load)" --> editorBundle
-    browser -- "HTTPS REST/JSON" --> backendApi
-    browser -- "HTTPS REST/JSON\n(direct from embedded editor)" --> validatorApi
-```
+<img style="max-width: 70rem" src="deployment-view.png" />
 
 ### Mapping of building blocks to infrastructure
 
