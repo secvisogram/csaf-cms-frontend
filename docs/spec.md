@@ -275,7 +275,16 @@ A single, consistent notification/toast pattern is used across the CMS shell for
 
 ## Quality Requirements
 
-_TBD_
+The quality goals in solution strategy name the top priorities; this section makes each one concrete and testable via a scenario (stimulus → response → response measure).
+
+| Quality goal                                    | Scenario (Stimulus)                                                                                         | Response                                                                                                                            | Response measure                                                                                                                       |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Reusability / replaceability of the editor      | A new editor implementing the `doc`/`schemaVersion`/`locale`/`validatorUrl` + events contract is swapped in | csaf-cms-frontend requires no code change, only a new `<script>` origin / config value                                              | Zero code changes outside configuration; existing E2E tests against the contract still pass                                            |
+| Security / minimal trust surface for the editor | Editor code attempts to read `document.cookie` or call csaf-cms-backend directly                            | Call/read fails or yields no usable session data                                                                                    | Session cookie is `HttpOnly`; csaf-cms-backend has no CORS allowlist entry for the editor's origin                                     |
+| Style isolation                                 | Host changes a global Tailwind theme/utility class                                                          | Editor's rendered appearance inside its Shadow DOM is unaffected, except platform-inherited properties (`color`, custom properties) | Visual regression diff of the editor's shadow root shows no change outside the documented inherited properties                         |
+| Independent release cadence                     | A new `secvisogram-editor.js` build is deployed to its CDN/static host                                      | csaf-cms-frontend keeps working without a redeploy of its own                                                                       | Zero downtime; existing embedding contract still satisfied                                                                             |
+| Bootstrap performance                           | User opens the edit-advisory page on a throttled (e.g. simulated 3G) connection                             | The editor bundle is loaded lazily, only when the edit-advisory page is reached, not on every route                                 | Time to Interactive (TTI) on the edit-advisory page stays within an agreed budget (target Total Blocking Duration (TBD) once measured) |
+| Low integration risk against the backend        | A new csaf-cms-frontend version is deployed against an unchanged csaf-cms-backend                           | All advisory CRUD, workflow-state, and template flows keep working                                                                  | Full E2E suite against the existing, documented backend API surface passes with zero backend-side changes                              |
 
 ## Risks and Technical Debt
 
@@ -289,4 +298,18 @@ Ordered by priority (highest first):
 
 ## Glossary
 
-_TBD_
+| Term                                            | Definition                                                                                                                                                           |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSAF                                            | Common Security Advisory Framework — OASIS standard document format for machine-readable security advisories.                                                        |
+| Advisory                                        | A single CSAF document plus its CMS metadata (id, revision, workflow state, owner) managed by csaf-cms-backend and edited through csaf-cms-frontend.                 |
+| Workflow state                                  | One of `Draft`, `Review`, `Approved`, `RfPublication`, `AutoPublish`, `Published` — the lifecycle stages an advisory moves through in csaf-cms-backend.              |
+| Revision                                        | An optimistic-locking token returned by csaf-cms-backend for an advisory; must be supplied on every mutating request so concurrent edits can be detected.            |
+| Template                                        | A pre-filled CSAF document skeleton offered by csaf-cms-backend when creating a new advisory.                                                                        |
+| Custom element / Web Component                  | Browser-native mechanism (`customElements.define`) used to embed `<secvisogram-editor>` in csaf-cms-frontend without any framework-level coupling.                   |
+| Shadow DOM                                      | Browser API providing a separate, style-isolated DOM subtree; used to sandbox the embedded editor's markup and CSS from the host page.                               |
+| `adoptedStyleSheets`                            | Web API for attaching a shared, constructed `CSSStyleSheet` object to multiple shadow roots without duplicating `<style>` text per instance.                         |
+| Validator microservice (csaf-validator-service) | External service exposing `POST {validatorUrl}/api/v1/validate`, wrapping the `@secvisogram/csaf-validator-lib` test suites; called directly by the embedded editor. |
+| secvisogram                                     | The sibling repository providing the pure, backend-free CSAF editor, packaged and released independently as `secvisogram-editor.js`.                                 |
+| ADR (Architecture Decision Record)              | A short document capturing a significant architectural decision, its context, and its consequences (see Architecture decisions).                                     |
+| SPA (Single-Page Application)                   | A web application that performs client-side routing and rendering without full page reloads on navigation.                                                           |
+| CSP (Content-Security-Policy)                   | An HTTP response header that restricts which origins scripts, styles, and network connections may come from.                                                         |
