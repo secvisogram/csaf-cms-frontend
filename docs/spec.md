@@ -158,7 +158,7 @@ sequenceDiagram
 
 ### Custom-Element Embedding Concept
 
-The most cross-cutting concept in this system: csaf-cms-frontend treats the editor exclusively as an opaque custom element (`<secvisogram-editor>`), never as a shared React component tree or direct component-library integration. It touches Building Block View (the editor is a single black-box node), Runtime View (every sequence crosses this boundary only via properties/events), Constraints (the `doc`/`locale`/`validatorUrl` properties and `csaf-change`/`csaf-validate` events), and Deployment View (the `@secvisogram/editor` npm package is imported and included in the host's own build). Any change to this contract must be versioned and coordinated across both repositories.
+The most cross-cutting concept in this system: csaf-cms-frontend treats the editor exclusively as an opaque custom element (`<secvisogram-editor>`), never as a shared React component tree or direct component-library integration. It touches Building Block View (the editor is a single black-box node), Runtime View (every sequence crosses this boundary only via properties/events), Constraints (the `doc`/`locale`/`validatorUrl` properties and `csaf-change`/`csaf-validate` events), and Deployment View (the `@secvisogram/editor` npm package is imported and included in the host's own build). Any change to this contract must be versioned and coordinated across both repositories. The contract itself is documented in [embedding-contract.md](embedding-contract.md).
 
 Rules:
 

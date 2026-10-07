@@ -9,7 +9,7 @@ Web-based CMS shell for creating, editing, and reviewing CSAF security advisorie
 
 `csaf-cms-frontend` is a single-page application that owns all authentication, session, and backend REST communication (dashboard, advisory CRUD,workflow-state, templates) against the external `csaf-cms-backend`. It embeds the [`secvisogram`](https://github.com/secvisogram/secvisogram) editor as a self-contained, backend-free `<secvisogram-editor>` custom element (Shadow DOM) for form- and source-based CSAF editing.
 
-See [docs/spec.md](docs/spec.md) for the full architecture documentation (context & scope, runtime views, crosscutting concepts, ADRs).
+See [docs/spec.md](docs/spec.md) for the full architecture documentation (context & scope, runtime views, crosscutting concepts, ADRs), and [docs/embedding-contract.md](docs/embedding-contract.md) for the properties and events of `<secvisogram-editor>`.
 
 ## Tech stack
 
