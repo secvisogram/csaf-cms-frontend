@@ -57,7 +57,7 @@ Channels, protocols, and interfaces:
 | `<secvisogram-editor>` (embedded custom element) | In-process JS properties and DOM events; optional direct validator request               | Properties in: `doc`, `locale`, `validatorUrl`. Events out: `csaf-change { doc }`, `csaf-validate { errors, valid }`.                                                                                                                                                     |
 | Validator microservice                           | HTTPS, REST, JSON — **called directly by the embedded editor, not by csaf-cms-frontend** | `POST {validatorUrl}/api/v1/validate`. Included here because it's reachable from within the system's UI, even though csaf-cms-frontend itself never talks to it directly.                                                                                                 |
 
-Note: csaf-cms-backend is explicitly out of scope for this system; csaf-cms-frontend's job is to be a complete, correct client against its existing API surface, not to influence its design.
+Note: csaf-cms-backend is explicitly out of scope for this system; csaf-cms-frontend's job is to be a complete, correct client against its existing API surface, not to influence its design. Endpoint parameters, response shapes, and the permission model are detailed in [backend-api.md](backend-api.md).
 
 ## Solution Strategy
 
