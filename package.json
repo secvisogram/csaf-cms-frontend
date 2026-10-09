@@ -8,7 +8,10 @@
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build && rm -r build/client/secvisogram-mock",
-    "typecheck": "react-router typegen && tsc -b ."
+    "typecheck": "react-router typegen && tsc -b .",
+    "test": "vitest run --project=node",
+    "test:browser": "vitest run --project=browser",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@react-router/node": "^8",
@@ -19,15 +22,21 @@
     "react-router": "^8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@react-router/dev": "^8",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/browser": "^5.0.1",
+    "@vitest/browser-playwright": "^5.0.1",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
+    "playwright": "^1.63.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^7.0.2",
-    "vite": "^8.0.3"
+    "vite": "^8.0.3",
+    "vitest": "^5.0.1",
+    "vitest-browser-react": "^2.3.0"
   }
 }
