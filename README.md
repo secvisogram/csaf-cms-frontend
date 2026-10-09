@@ -18,6 +18,8 @@ See [docs/spec.md](docs/spec.md) for the full architecture documentation (contex
 - Tailwind CSS 4
 - Vite 8
 - TypeScript
+- Vitest 5 (node and Browser Mode projects) and Playwright for testing
+- oxlint and oxfmt for linting and formatting
 
 ## Project structure
 
@@ -27,12 +29,27 @@ See [docs/spec.md](docs/spec.md) for the full architecture documentation (contex
 
 ## Getting started
 
+Requires Node 24 (see `.nvmrc`).
+
 ```sh
 npm install
-npm run dev         # start the Vite dev server
-npm run build       # production build (static assets under build/client)
-npm run typecheck   # generate route types and run tsc
+npm run dev           # start the Vite dev server
+npm run build         # production build (static assets under build/client)
+npm run typecheck     # generate route types and run tsc
+npm run lint          # oxlint
+npm run format:check  # oxfmt --check
 ```
+
+## Testing
+
+```sh
+npx playwright install chromium  # once; browser for Browser Mode and E2E
+npm run test          # Vitest node project (loaders, actions, API client)
+npm run test:browser  # Vitest Browser Mode project (rendered components)
+npm run test:e2e      # Playwright E2E specs in tests/e2e (backend mocked via page.route())
+```
+
+Pass `--reporter=list` to `npm run test:e2e --` for terminal output instead of the HTML report.
 
 ## Related repos
 
