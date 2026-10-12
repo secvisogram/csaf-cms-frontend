@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeStorage } from '~/testing/fakeStorage'
-import { resetAppConfigCache } from './appConfig'
-import { fetchApiOrRedirect } from './session'
+
+let fetchApiOrRedirect: typeof import('./session').fetchApiOrRedirect
 
 function configResponse(loginUrl: string) {
   return new Response(
@@ -15,8 +15,10 @@ function configResponse(loginUrl: string) {
 }
 
 describe('fetchApiOrRedirect', () => {
-  beforeEach(() => {
-    resetAppConfigCache()
+  // A fresh module graph per test gives an empty app-config cache.
+  beforeEach(async () => {
+    vi.resetModules()
+    ;({ fetchApiOrRedirect } = await import('./session'))
     vi.stubGlobal('sessionStorage', fakeStorage())
     vi.stubGlobal('window', {
       location: {

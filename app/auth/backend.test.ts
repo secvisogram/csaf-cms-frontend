@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeStorage } from '~/testing/fakeStorage'
-import { resetAppConfigCache } from './appConfig'
 import {
   changeWorkflowState,
   createAdvisory,
@@ -36,7 +35,6 @@ function mockFetchResolvingText(status: number, body: string) {
 
 describe('typed backend client', () => {
   beforeEach(() => {
-    resetAppConfigCache()
     vi.stubGlobal('sessionStorage', fakeStorage())
   })
 

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AppConfigError, getAppConfig, resetAppConfigCache } from './appConfig'
+
+let getAppConfig: typeof import('./appConfig').getAppConfig
+let AppConfigError: typeof import('./appConfig').AppConfigError
 
 const validConfig = {
   loginUrl: '/oauth2/sign_in',
@@ -16,8 +18,10 @@ function stubConfigResponse(body: unknown, status = 200) {
 }
 
 describe('getAppConfig', () => {
-  beforeEach(() => {
-    resetAppConfigCache()
+  // A fresh module instance per test gives an empty app-config cache.
+  beforeEach(async () => {
+    vi.resetModules()
+    ;({ getAppConfig, AppConfigError } = await import('./appConfig'))
   })
 
   afterEach(() => {

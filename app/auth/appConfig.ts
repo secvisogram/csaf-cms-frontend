@@ -72,8 +72,3 @@ export function getAppConfig(): Promise<AppConfig> {
   })
   return cachedAppConfig
 }
-
-/** Test-only: clears the module-level cache so each test starts from a clean state. */
-export function resetAppConfigCache(): void {
-  cachedAppConfig = undefined
-}
