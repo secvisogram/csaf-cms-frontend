@@ -6,9 +6,11 @@ import {
   Scripts,
   ScrollRestoration,
 } from 'react-router'
+import { useTranslation } from 'react-i18next'
 
 import { AppConfigError, getAppConfig } from '~/auth/appConfig'
 import { fetchApiOrRedirect } from '~/auth/session'
+import '~/i18n/i18n'
 import { NotificationProvider } from '~/notifications/NotificationContext'
 import type { Route } from './+types/root'
 import './app.css'
@@ -58,17 +60,19 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const { t } = useTranslation()
+
   if (error instanceof AppConfigError) {
     return (
       <main className="pt-16 p-4 container mx-auto">
-        <h1>Configuration unavailable</h1>
-        <p>The application configuration could not be loaded.</p>
+        <h1>{t('appConfigError.heading')}</h1>
+        <p>{t('appConfigError.body')}</p>
         <button
           type="button"
           className="underline"
           onClick={() => window.location.reload()}
         >
-          Retry
+          {t('appConfigError.retry')}
         </button>
       </main>
     )
