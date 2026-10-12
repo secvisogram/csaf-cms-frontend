@@ -7,10 +7,25 @@ import {
   ScrollRestoration,
 } from 'react-router'
 
+import { AppConfigError, getAppConfig } from '~/auth/appConfig'
+import { fetchApiOrRedirect } from '~/auth/session'
 import type { Route } from './+types/root'
 import './app.css'
 
+export type UserInfo = {
+  groups: string[]
+}
+
 export const links: Route.LinksFunction = () => []
+
+export const clientLoader = async () => {
+  const appConfig = await getAppConfig()
+  const result = await fetchApiOrRedirect<UserInfo>(appConfig.userInfoUrl)
+  if (!result.ok) {
+    throw new Error(`Failed to load user info: ${result.error.message}`)
+  }
+  return { appConfig, userInfo: result.data }
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -38,6 +53,22 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  if (error instanceof AppConfigError) {
+    return (
+      <main className="pt-16 p-4 container mx-auto">
+        <h1>Configuration unavailable</h1>
+        <p>The application configuration could not be loaded.</p>
+        <button
+          type="button"
+          className="underline"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </main>
+    )
+  }
+
   let message = 'Oops!'
   let details = 'An unexpected error occurred.'
   let stack: string | undefined
