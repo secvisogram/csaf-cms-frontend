@@ -31,7 +31,7 @@ csaf-cms-frontend's own API client must reproduce, since it takes over every bac
 
 `GET /.well-known/appspecific/de.bsi.secvisogram.json` — today, fetched by secvisogram itself to detect whether it's running standalone or backend-connected. In the target architecture this endpoint has two separate consumers:
 
-- **csaf-cms-frontend** fetches it for the auth/session fields (`loginAvailable`, `loginUrl`, `logoutUrl`, `userInfoUrl`) — the embedded editor no longer needs to know whether a backend exists at all; the host instead passes `validatorUrl`
+- **csaf-cms-frontend** fetches it for the auth/session fields (`loginUrl`, `logoutUrl`, `userInfoUrl`; it ignores `loginAvailable`, since login is mandatory there) — the embedded editor no longer needs to know whether a backend exists at all; the host instead passes `validatorUrl`
   directly to it as a property (see [the embedding contract](embedding-contract.md)).
 - **secvisogram's standalone build** keeps its own slimmed-down fetch of the same endpoint, reading only `validatorUrl` and dropping the auth fields entirely — standalone mode has no host to hand it a `validatorUrl` property, so it still needs to source the value itself.
 
@@ -48,8 +48,10 @@ Full shape returned by the endpoint (unchanged):
 }
 ```
 
-The fetch never rejects — on network failure it resolves `{ loginAvailable: false }`, which today drives secvisogram's standalone fallback;
-the standalone build's own slimmed-down fetch degrades the same way, simply treating a failed/empty response as "no validator configured". csaf-cms-frontend should adopt an equivalent "config not loaded yet" guard on mount before branching on `loginAvailable`, mirroring the current race-condition handling.
+secvisogram's own fetch never rejects — on network failure it resolves `{ loginAvailable: false }`, which drives its standalone fallback;
+the standalone build's own slimmed-down fetch degrades the same way, simply treating a failed/empty response as "no validator configured".
+
+csaf-cms-frontend has no standalone fallback. Its config loader throws if the fetch or parse fails, or if `loginUrl`, `logoutUrl` or `userInfoUrl` is missing or empty, and the root error boundary shows a fatal "configuration unavailable" page. The root `clientLoader` blocks rendering until the config is loaded, so no "config not loaded yet" guard is needed.
 
 ## Advisory data shapes
 
