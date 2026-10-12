@@ -9,6 +9,7 @@ import {
 
 import { AppConfigError, getAppConfig } from '~/auth/appConfig'
 import { fetchApiOrRedirect } from '~/auth/session'
+import { NotificationProvider } from '~/notifications/NotificationContext'
 import type { Route } from './+types/root'
 import './app.css'
 
@@ -49,7 +50,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />
+  return (
+    <NotificationProvider>
+      <Outlet />
+    </NotificationProvider>
+  )
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
