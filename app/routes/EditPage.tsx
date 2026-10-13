@@ -27,6 +27,15 @@ type EditorElement = HTMLElement & {
   validatorUrl?: string | undefined
 }
 
+/** Property writes on an undefined custom element are lost, so wait for its definition. */
+async function whenEditorReady(
+  ref: React.RefObject<EditorElement | null>,
+  signal: AbortSignal,
+): Promise<EditorElement | undefined> {
+  await customElements.whenDefined('secvisogram-editor')
+  return signal.aborted ? undefined : (ref.current ?? undefined)
+}
+
 const EditPage: React.FC = () => {
   const data = useLoaderData<typeof clientLoader>()
   const { t, i18n } = useTranslation()
@@ -35,46 +44,44 @@ const EditPage: React.FC = () => {
   const [valid, setValid] = useState(true)
 
   useEffect(() => {
-    let cancelled = false
-    customElements.whenDefined('secvisogram-editor').then(() => {
-      const editor = editorRef.current
-      if (cancelled || !editor) return
-      editor.locale = i18n.language
+    const controller = new AbortController()
+    whenEditorReady(editorRef, controller.signal).then((editor) => {
+      if (editor) editor.locale = i18n.language
     })
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [i18n.language])
 
   useEffect(() => {
-    let cancelled = false
-    customElements.whenDefined('secvisogram-editor').then(() => {
-      const editor = editorRef.current
-      if (cancelled || !editor) return
+    const controller = new AbortController()
+    whenEditorReady(editorRef, controller.signal).then((editor) => {
+      if (!editor) return
       editor.validatorUrl = data.validatorUrl
       editor.doc = data.csaf
       setDoc(data.csaf)
     })
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [data.csaf, data.validatorUrl])
 
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
-    const handleChange = (event: Event) => {
-      setDoc((event as CustomEvent<{ doc: unknown }>).detail.doc)
-    }
-    const handleValidate = (event: Event) => {
-      setValid((event as CustomEvent<{ valid: boolean }>).detail.valid)
-    }
-    editor.addEventListener('csaf-change', handleChange)
-    editor.addEventListener('csaf-validate', handleValidate)
-    return () => {
-      editor.removeEventListener('csaf-change', handleChange)
-      editor.removeEventListener('csaf-validate', handleValidate)
-    }
+    const controller = new AbortController()
+    const { signal } = controller
+    editor.addEventListener(
+      'csaf-change',
+      (event) => {
+        setDoc((event as CustomEvent<{ doc: unknown }>).detail.doc)
+      },
+      { signal },
+    )
+    editor.addEventListener(
+      'csaf-validate',
+      (event) => {
+        setValid((event as CustomEvent<{ valid: boolean }>).detail.valid)
+      },
+      { signal },
+    )
+    return () => controller.abort()
   }, [])
 
   return (
