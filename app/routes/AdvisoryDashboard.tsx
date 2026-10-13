@@ -1,4 +1,5 @@
 import { href, Link } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import type { Route } from './+types/AdvisoryDashboard'
 
 const data = [
@@ -11,9 +12,11 @@ export const clientLoader = () => {
 }
 
 const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
+  const { t } = useTranslation()
+
   return (
     <div className="max-w-4xl mx-auto mt-2 px-4">
-      <h2 className="text-lg font-bold">Advisory Dashboard</h2>
+      <h2 className="text-lg font-bold">{t('dashboard.heading')}</h2>
       <ul className="flex flex-col gap-y-2 mt-4">
         {loaderData.map((d) => (
           <li key={d.advisoryId}>
@@ -21,7 +24,7 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
               className="underline"
               to={href('/:advisoryId/edit', { advisoryId: d.advisoryId })}
             >
-              Advisory: {d.advisoryId}
+              {t('dashboard.advisoryLink')} {d.advisoryId}
             </Link>
           </li>
         ))}

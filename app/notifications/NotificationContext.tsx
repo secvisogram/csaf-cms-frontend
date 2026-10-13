@@ -6,16 +6,13 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useTranslation } from 'react-i18next'
+import '~/i18n/i18n'
 
 export type Notification = {
   /** Stable key, not pre-rendered prose; resolveMessage renders it for display. */
   reason: string
   variant: 'success' | 'error'
-}
-
-/** Placeholder until ticket 11's i18n dictionary replaces this lookup. */
-function resolveMessage(reason: string): string {
-  return reason
 }
 
 type ActiveNotification = Notification & { id: number }
@@ -43,6 +40,7 @@ export function NotificationProvider({
 }: {
   children: React.ReactNode
 }) {
+  const { t } = useTranslation()
   const [notifications, setNotifications] = useState<ActiveNotification[]>([])
   const nextId = useRef(0)
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
@@ -85,14 +83,16 @@ export function NotificationProvider({
               notification.variant === 'success' ? 'bg-green-600' : 'bg-red-600'
             }`}
           >
-            <span>{resolveMessage(notification.reason)}</span>
+            <span>
+              {t(notification.reason, { defaultValue: notification.reason })}
+            </span>
             <button
               type="button"
-              aria-label="Dismiss"
+              aria-label={t('notifications.dismiss')}
               onClick={() => dismiss(notification.id)}
               className="font-bold"
             >
-              Dismiss
+              {t('notifications.dismiss')}
             </button>
           </div>
         ))}

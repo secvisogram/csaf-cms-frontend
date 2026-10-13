@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { href, Link, Outlet } from 'react-router'
+import { useTranslation } from 'react-i18next'
 
 export const App: React.FC<{}> = () => {
+  const { t } = useTranslation()
   const [errors] = useState(2)
   const [warnings] = useState(10)
   const [infos] = useState(0)
@@ -16,19 +18,19 @@ export const App: React.FC<{}> = () => {
               className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
               to={href('/')}
             >
-              Dashboard
+              {t('nav.dashboard')}
             </Link>
             <button
               data-testid="new_document_button"
               className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
             >
-              New
+              {t('nav.new')}
             </button>
             <button
               data-testid="new_export_document_button"
               className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
             >
-              Export
+              {t('nav.export')}
             </button>
           </div>
           <div className="text-gray-300 font-bold text-sm h-9"></div>
@@ -37,7 +39,9 @@ export const App: React.FC<{}> = () => {
             type="button"
             className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 mr-5 h-auto"
           >
-            Document is {errors > 0 ? 'invalid' : 'valid'}:
+            {errors > 0
+              ? t('statusBar.documentInvalid')
+              : t('statusBar.documentValid')}
             <span className="px-1">
               <svg
                 aria-hidden="true"
@@ -54,7 +58,7 @@ export const App: React.FC<{}> = () => {
                   d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512z"
                 ></path>
               </svg>{' '}
-              {errors} errors{' '}
+              {errors} {t('statusBar.errors')}{' '}
             </span>
             <span className="px-1">
               <svg
@@ -72,7 +76,7 @@ export const App: React.FC<{}> = () => {
                   d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512z"
                 ></path>
               </svg>{' '}
-              {warnings} warnings{' '}
+              {warnings} {t('statusBar.warnings')}{' '}
             </span>
             <span className="px-1">
               <svg
@@ -90,7 +94,7 @@ export const App: React.FC<{}> = () => {
                   d="M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512z"
                 ></path>
               </svg>{' '}
-              {infos} infos{' '}
+              {infos} {t('statusBar.infos')}{' '}
             </span>
           </button>
         </div>
