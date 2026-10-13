@@ -51,6 +51,20 @@ npm run test:e2e      # Playwright E2E specs in tests/e2e (backend mocked via pa
 
 Pass `--reporter=list` to `npm run test:e2e --` for terminal output instead of the HTML report.
 
+## Developing against a real backend
+
+By default `npm run dev` has no backend behind it. To point it at a real
+`csaf-cms-backend` instead:
+
+1. Start the backend's local docker compose stack — see [`csaf-cms-backend/docker/README.md`](https://github.com/secvisogram/csaf-cms-backend/blob/main/docker/README.md). Its reverse-proxy serves the whole stack from `http://localhost` (port 80).
+2. Copy `.env.example` to `.env.local` and set:
+   ```
+   CSAF_DEV_BACKEND_URL=http://localhost
+   ```
+3. Run `npm run dev` and log in with one of the stack's default users (e.g. `author`/`author`).
+
+This proxies `/api`, `/oauth2`, and the well-known app-config endpoint to the backend; everything else (including the embedded `<secvisogram-editor>`) still uses `secvisogram-mock`.
+
 ## Related repos
 
 - [`secvisogram`](https://github.com/secvisogram/secvisogram) — the embedded CSAF editor, developed and released independently by design (backend-free)
