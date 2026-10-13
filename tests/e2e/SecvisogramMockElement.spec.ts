@@ -15,6 +15,15 @@ async function gotoEditPage(page: import('@playwright/test').Page) {
   await page.route('**/oauth2/userinfo', (route) =>
     route.fulfill({ json: { groups: ['editor'] } }),
   )
+  await page.route('**/api/v1/advisories/some-advisory-id', (route) =>
+    route.fulfill({
+      json: {
+        advisoryId: 'some-advisory-id',
+        revision: 'rev-1',
+        csaf: null,
+      },
+    }),
+  )
   await page.goto('/some-advisory-id/edit')
 }
 

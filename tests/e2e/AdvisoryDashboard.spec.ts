@@ -45,6 +45,15 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/advisories', (route) =>
     route.fulfill({ json: advisories }),
   )
+  await page.route('**/api/v1/advisories/advisory-1', (route) =>
+    route.fulfill({
+      json: {
+        ...advisories[0],
+        revision: 'rev-1',
+        csaf: { document: { csaf_version: '2.1' } },
+      },
+    }),
+  )
 })
 
 test('renders advisory rows with the expected columns, each linking to its edit page', async ({
