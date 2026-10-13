@@ -5,8 +5,6 @@ import { getAdvisory } from '~/auth/backend'
 import { getAppConfig } from '~/auth/appConfig'
 import type { Route } from './+types/EditPage'
 
-const LOCALE = 'en'
-
 export const clientLoader = async ({ params }: Route.ClientLoaderArgs) => {
   const [detail, appConfig] = await Promise.all([
     getAdvisory(params.advisoryId),
@@ -31,7 +29,7 @@ type EditorElement = HTMLElement & {
 
 const EditPage: React.FC = () => {
   const data = useLoaderData<typeof clientLoader>()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const editorRef = useRef<EditorElement>(null)
   const [doc, setDoc] = useState(data.csaf)
   const [valid, setValid] = useState(true)
@@ -41,7 +39,18 @@ const EditPage: React.FC = () => {
     customElements.whenDefined('secvisogram-editor').then(() => {
       const editor = editorRef.current
       if (cancelled || !editor) return
-      editor.locale = LOCALE
+      editor.locale = i18n.language
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [i18n.language])
+
+  useEffect(() => {
+    let cancelled = false
+    customElements.whenDefined('secvisogram-editor').then(() => {
+      const editor = editorRef.current
+      if (cancelled || !editor) return
       editor.validatorUrl = data.validatorUrl
       editor.doc = data.csaf
       setDoc(data.csaf)
