@@ -44,6 +44,7 @@ export function NotificationProvider({
   const [notifications, setNotifications] = useState<ActiveNotification[]>([])
   const nextId = useRef(0)
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
+  const activeIds = useRef(new Map<string, number>())
 
   useEffect(() => {
     const pending = timers.current
@@ -56,12 +57,19 @@ export function NotificationProvider({
   const dismiss = useCallback((id: number) => {
     clearTimeout(timers.current.get(id))
     timers.current.delete(id)
+    activeIds.current.forEach((activeId, key) => {
+      if (activeId === id) activeIds.current.delete(key)
+    })
     setNotifications((current) => current.filter((n) => n.id !== id))
   }, [])
 
   const notify = useCallback(
     (notification: Notification) => {
+      // An identical toast that is still showing is not stacked again.
+      const key = `${notification.variant}:${notification.reason}`
+      if (activeIds.current.has(key)) return
       const id = nextId.current++
+      activeIds.current.set(key, id)
       setNotifications((current) => [...current, { ...notification, id }])
       timers.current.set(
         id,

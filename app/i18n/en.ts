@@ -13,7 +13,15 @@ export default {
   },
   dashboard: {
     heading: 'Advisory Dashboard',
-    advisoryLink: 'Advisory:',
+    loadFailed: 'The advisory list could not be loaded.',
+    filterLabel: 'Filter advisories',
+    columns: {
+      title: 'Title',
+      trackingId: 'Tracking ID',
+      workflowState: 'Workflow State',
+      owner: 'Owner',
+      currentReleaseDate: 'Current Release Date',
+    },
   },
   editPage: {
     heading: 'Edit Page for Advisory with id',
