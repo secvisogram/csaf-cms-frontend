@@ -6,7 +6,6 @@ declare module 'react' {
         HTMLElement
       > & {
         doc?: unknown
-        schemaVersion?: string
         locale?: string
         validatorUrl?: string
       }
