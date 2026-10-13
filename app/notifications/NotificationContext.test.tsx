@@ -55,6 +55,19 @@ describe('NotificationContext', () => {
       .not.toBeInTheDocument()
   })
 
+  it('does not stack an identical toast that is still showing', async () => {
+    const screen = await render(
+      <NotificationProvider>
+        <TriggerButton reason="Saved successfully" variant="success" />
+      </NotificationProvider>,
+    )
+
+    await screen.getByRole('button', { name: 'Trigger' }).click()
+    await screen.getByRole('button', { name: 'Trigger' }).click()
+
+    await expect.element(screen.getByText('Saved successfully')).toBeVisible()
+  })
+
   it('auto-dismisses after a few seconds', async () => {
     const screen = await render(
       <NotificationProvider>

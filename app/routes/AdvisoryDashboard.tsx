@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { href, Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
@@ -66,14 +66,11 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
     [t],
   )
 
-  // Survives StrictMode's dev-only effect re-run, which would notify twice.
-  const notifiedFor = useRef<typeof loaderData | null>(null)
   useEffect(() => {
-    if (loaderData.loadFailed && notifiedFor.current !== loaderData) {
-      notifiedFor.current = loaderData
+    if (loaderData.loadFailed) {
       notify({ reason: 'dashboard.loadFailed', variant: 'error' })
     }
-  }, [loaderData, notify])
+  }, [loaderData.loadFailed, notify])
 
   const table = useTable({
     features,
