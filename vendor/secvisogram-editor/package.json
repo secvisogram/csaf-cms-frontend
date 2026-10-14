@@ -1,0 +1,8 @@
+{
+  "name": "secvisogram-editor-vendor",
+  "private": true,
+  "description": "Installs the pinned @secvisogram/editor prerelease from GitHub Packages; copied into build/client by build:prod.",
+  "dependencies": {
+    "@secvisogram/editor": "0.1.0-demo.1"
+  }
+}

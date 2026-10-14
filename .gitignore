@@ -8,3 +8,4 @@ build-types
 .env
 .env.local
 .env.*.local
+/vendor/*/node_modules

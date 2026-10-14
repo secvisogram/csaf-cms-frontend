@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build && rm -r build/client/secvisogram-mock",
+    "build:prod": "node scripts/buildProd.ts",
     "typecheck": "react-router typegen && tsc -b .",
     "test": "vitest run --project=node",
     "test:browser": "vitest run --project=browser",
