@@ -25,6 +25,8 @@ See [docs/spec.md](docs/spec.md) for the full architecture documentation (contex
 
 - `app/` - application code
 - `docs/` - architecture documentation (`spec.md`)
+- `scripts/` - build helpers (`build:prod`)
+- `vendor/secvisogram-editor/` - pinned `@secvisogram/editor` install, kept out of the main `npm ci`
 - `secvisogram-mock/` - dev-only stub of the `<secvisogram-editor>` custom element, loaded only in `npm run dev` so the app is runnable without the real `secvisogram-editor.js` bundle present
 
 ## Getting started
@@ -34,11 +36,31 @@ Requires Node 24 (see `.nvmrc`).
 ```sh
 npm install
 npm run dev           # start the Vite dev server
-npm run build         # production build (static assets under build/client)
+npm run build         # production build (static assets under build/client), no editor
+npm run build:prod    # build + real editor tree in build/client/secvisogram-editor (see below)
 npm run typecheck     # generate route types and run tsc
 npm run lint          # oxlint
 npm run format:check  # oxfmt --check
 ```
+
+## Real editor in production builds
+
+`npm run build:prod` loads the real editor, a `-demo.N` prerelease of `@secvisogram/editor` from the GitHub Packages npm registry. It is installed separately from the main dependencies, so `npm ci` and `npm run build` need no token.
+
+Log in once to GitHub Packages. Use your GitHub username and a personal access token (classic) with `read:packages` as the password; npm stores the token in `~/.npmrc`, outside the repository:
+
+```sh
+npm login --registry https://npm.pkg.github.com
+```
+
+Then install the editor and build:
+
+```sh
+cd vendor/secvisogram-editor && npm ci && cd ../..
+npm run build:prod
+```
+
+`build:prod` fails before building if the editor is not installed. It copies the package's `dist/` to `build/client/secvisogram-editor/`.
 
 ## Testing
 

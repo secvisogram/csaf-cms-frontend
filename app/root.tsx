@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 
 import { AppConfigError, getAppConfig } from '~/auth/appConfig'
 import { fetchApiOrRedirect } from '~/auth/session'
+import { EditorScript } from '~/EditorScript'
 import '~/i18n/i18n'
 import { NotificationProvider } from '~/notifications/NotificationContext'
 import type { Route } from './+types/root'
@@ -46,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
         <ScrollRestoration />
         <Scripts />
+        <EditorScript />
       </body>
     </html>
   )
