@@ -13,6 +13,7 @@
     "test": "vitest run --project=node",
     "test:browser": "vitest run --project=browser",
     "test:e2e": "playwright test",
+    "test:smoke": "playwright test -c playwright.smoke.config.ts",
     "lint": "oxlint",
     "format:check": "oxfmt --check"
   },
