@@ -1,0 +1,9 @@
+#!/bin/sh
+# Sourced by the nginx entrypoint before templates are rendered.
+: "${EDGE_ORIGIN:?EDGE_ORIGIN must be set, e.g. https://demo.example.com}"
+EDGE_ORIGIN="${EDGE_ORIGIN%/}"
+EDGE_ORIGIN_ENCODED=$(printf '%s' "$EDGE_ORIGIN" | sed -e 's/:/%3A/g' -e 's/\//%2F/g')
+export EDGE_ORIGIN EDGE_ORIGIN_ENCODED
+
+CSP_SCRIPT_HASHES=$(cat /etc/nginx/csp-script-hashes.txt)
+export CSP_SCRIPT_HASHES

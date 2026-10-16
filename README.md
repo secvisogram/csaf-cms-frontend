@@ -26,6 +26,7 @@ See [docs/spec.md](docs/spec.md) for the full architecture documentation (contex
 - `app/` - application code
 - `docs/` - architecture documentation (`spec.md`)
 - `scripts/` - build helpers (`build:prod`)
+- `edge/` - NGINX edge image (frontend, editor tree, app config, security headers)
 - `vendor/secvisogram-editor/` - pinned `@secvisogram/editor` install, kept out of the main `npm ci`
 - `secvisogram-mock/` - dev-only stub of the `<secvisogram-editor>` custom element, loaded only in `npm run dev` so the app is runnable without the real `secvisogram-editor.js` bundle present
 
@@ -60,7 +61,20 @@ cd vendor/secvisogram-editor && npm ci && cd ../..
 npm run build:prod
 ```
 
-`build:prod` fails before building if the editor is not installed. It copies the package's `dist/` to `build/client/secvisogram-editor/`.
+`build:prod` fails before building if the editor is not installed. It copies the package's `dist/` to `build/client/secvisogram-editor/` (the served version is in its `VERSION` file) and writes `build/csp-script-hashes.txt`, the CSP hashes of the app shell's inline scripts for the edge.
+
+## Edge container and smoke checks
+
+`edge/` holds an NGINX image that serves the `build:prod` output from one origin: the app with SPA fallback, the editor asset tree at `/secvisogram-editor/` and the app-config document, with HSTS, no-framing and a CSP suited to a public origin. `EDGE_ORIGIN` is the public origin used in the app config and is required at container start.
+
+```sh
+npm run build:prod
+docker build -f edge/Dockerfile -t csaf-cms-edge .
+docker run --rm -p 8080:8080 -e EDGE_ORIGIN=http://localhost:8080 csaf-cms-edge
+SMOKE_BASE_URL=http://localhost:8080 npm run test:smoke
+```
+
+`test:smoke` runs the checks in `tests/smoke` against any base URL (default `http://localhost:8080`). It reads the editor file list from `build/client/secvisogram-editor`, so run it from a checkout with `build:prod` output.
 
 ## Testing
 

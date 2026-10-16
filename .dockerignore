@@ -1,0 +1,4 @@
+*
+!build/client
+!build/csp-script-hashes.txt
+!edge
