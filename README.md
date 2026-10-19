@@ -99,7 +99,7 @@ By default `npm run dev` has no backend behind it. To point it at a real
    ```
 3. Run `npm run dev` and log in with one of the stack's default users (e.g. `author`/`author`).
 
-This proxies `/api`, `/oauth2`, and the well-known app-config endpoint to the backend; everything else (including the embedded `<secvisogram-editor>`) still uses `secvisogram-mock`.
+This proxies `/api` and `/oauth2` to the backend and serves the backend's app-config with its `userInfoUrl` made same-origin (the stack publishes absolute `http://localhost/...` URLs, which the dev server's origin cannot call without CORS); everything else (including the embedded `<secvisogram-editor>`) still uses `secvisogram-mock`.
 
 ## Related repos
 
