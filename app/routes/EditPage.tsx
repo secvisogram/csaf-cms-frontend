@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useLoaderData } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { getAdvisory } from '~/auth/backend'
+import { getAdvisory, updateAdvisory } from '~/auth/backend'
 import { getAppConfig } from '~/auth/appConfig'
+import { SaveFooter, type SaveFields } from '~/components/SaveFooter'
+import { useNotification } from '~/notifications/NotificationContext'
 import type { Route } from './+types/EditPage'
 
 export const clientLoader = async ({ params }: Route.ClientLoaderArgs) => {
@@ -42,6 +44,27 @@ const EditPage: React.FC = () => {
   const editorRef = useRef<EditorElement>(null)
   const [doc, setDoc] = useState(data.csaf)
   const [valid, setValid] = useState(true)
+  const [revision, setRevision] = useState(data.revision)
+  const { notify } = useNotification()
+
+  useEffect(() => {
+    setRevision(data.revision)
+  }, [data.revision])
+
+  const save = async ({ summary, legacyVersion }: SaveFields) => {
+    const result = await updateAdvisory(data.advisoryId, revision, {
+      csaf: doc,
+      summary,
+      ...(legacyVersion.trim() ? { legacyVersion } : {}),
+    }).catch(() => undefined)
+    if (!result?.ok) {
+      notify({ reason: 'saveFooter.saveFailed', variant: 'error' })
+      return false
+    }
+    setRevision(result.data.revision)
+    notify({ reason: 'saveFooter.saved', variant: 'success' })
+    return true
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -85,7 +108,7 @@ const EditPage: React.FC = () => {
   }, [])
 
   return (
-    <div className="max-w-4xl mx-auto mt-2 px-4">
+    <div className="max-w-4xl mx-auto mt-2 px-4 pb-16">
       <h2 className="text-lg font-bold">
         {t('editPage.heading')} <code>{data.advisoryId}</code>
       </h2>
@@ -97,6 +120,7 @@ const EditPage: React.FC = () => {
       <p data-testid="edit_page_tracked_valid" hidden>
         {String(valid)}
       </p>
+      <SaveFooter valid={valid} onSave={save} />
     </div>
   )
 }
