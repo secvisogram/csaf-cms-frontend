@@ -9,26 +9,21 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { AppConfigError, getAppConfig } from '~/auth/appConfig'
-import { fetchApiOrRedirect } from '~/auth/session'
+import { getUserInfo } from '~/auth/userInfo'
 import { EditorScript } from '~/EditorScript'
 import '~/i18n/i18n'
 import { NotificationProvider } from '~/notifications/NotificationContext'
 import type { Route } from './+types/root'
 import './app.css'
 
-export type UserInfo = {
-  groups: string[]
-}
-
 export const links: Route.LinksFunction = () => []
 
 export const clientLoader = async () => {
-  const appConfig = await getAppConfig()
-  const result = await fetchApiOrRedirect<UserInfo>(appConfig.userInfoUrl)
-  if (!result.ok) {
-    throw new Error(`Failed to load user info: ${result.error.message}`)
-  }
-  return { appConfig, userInfo: result.data }
+  const [appConfig, userInfo] = await Promise.all([
+    getAppConfig(),
+    getUserInfo(),
+  ])
+  return { appConfig, userInfo }
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {

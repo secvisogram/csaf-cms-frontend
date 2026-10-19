@@ -1,12 +1,18 @@
 import { useState } from 'react'
-import { href, Link, Outlet } from 'react-router'
+import { href, Link, Outlet, useRouteLoaderData } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { canCreateDocuments } from '~/auth/userInfo'
+import { NewDocumentDialog } from '~/components/NewDocumentDialog'
+import type { clientLoader as rootLoader } from '~/root'
 
 export const App: React.FC<{}> = () => {
   const { t } = useTranslation()
   const [errors] = useState(2)
   const [warnings] = useState(10)
   const [infos] = useState(0)
+  const [newDialogOpen, setNewDialogOpen] = useState(false)
+  const rootData = useRouteLoaderData<typeof rootLoader>('root')
+  const canCreate = rootData ? canCreateDocuments(rootData.userInfo) : false
 
   return (
     <>
@@ -20,12 +26,16 @@ export const App: React.FC<{}> = () => {
             >
               {t('nav.dashboard')}
             </Link>
-            <button
-              data-testid="new_document_button"
-              className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
-            >
-              {t('nav.new')}
-            </button>
+            {canCreate && (
+              <button
+                type="button"
+                data-testid="new_document_button"
+                onClick={() => setNewDialogOpen(true)}
+                className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
+              >
+                {t('nav.new')}
+              </button>
+            )}
             <button
               data-testid="new_export_document_button"
               className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
@@ -102,6 +112,9 @@ export const App: React.FC<{}> = () => {
           <Outlet />
         </div>
       </div>
+      {newDialogOpen && (
+        <NewDocumentDialog onClose={() => setNewDialogOpen(false)} />
+      )}
     </>
   )
 }
