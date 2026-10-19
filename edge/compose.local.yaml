@@ -1,0 +1,36 @@
+# Overlay for the csaf-cms-backend development Compose stack (PostgreSQL branch): puts the edge
+# in front of the private services in place of the stack's own reverse-proxy. Usage and
+# prerequisites are in the README ("Edge in front of the development Compose stack").
+services:
+  reverse-proxy:
+    profiles: ['disabled']
+
+  # Pinned by digest of the published feat-couchdb-to-postgres-migration image.
+  backend-cms:
+    image: ghcr.io/secvisogram/csaf-cms-backend@sha256:8d5124a7f04c50eab9276e5c18f1b2e0953a45a2a96d68289d203289adadfa6b
+    # Only the PostgreSQL branch's stack defines cms-db; on a CouchDB checkout Compose fails here
+    # instead of starting a backend that cannot reach its database.
+    depends_on:
+      cms-db:
+        condition: service_healthy
+
+  edge:
+    image: csaf-cms-edge
+    restart: on-failure
+    environment:
+      # The stack's realm, Keycloak hostname and oauth2-proxy login URL are fixed to this origin.
+      EDGE_ORIGIN: http://localhost
+    ports:
+      - '80:8080'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -O /dev/null http://127.0.0.1:8080/ || exit 1']
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      oauth2-proxy:
+        condition: service_healthy
+      validator:
+        condition: service_healthy

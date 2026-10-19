@@ -3,7 +3,23 @@
 : "${EDGE_ORIGIN:?EDGE_ORIGIN must be set, e.g. https://demo.example.com}"
 EDGE_ORIGIN="${EDGE_ORIGIN%/}"
 EDGE_ORIGIN_ENCODED=$(printf '%s' "$EDGE_ORIGIN" | sed -e 's/:/%3A/g' -e 's/\//%2F/g')
-export EDGE_ORIGIN EDGE_ORIGIN_ENCODED
+# The edge may sit behind a TLS-terminating ingress, so forwarded host and proto come from the
+# configured public origin, never from the connection the edge itself sees.
+EDGE_ORIGIN_SCHEME="${EDGE_ORIGIN%%://*}"
+EDGE_ORIGIN_AUTHORITY="${EDGE_ORIGIN#*://}"
+export EDGE_ORIGIN EDGE_ORIGIN_ENCODED EDGE_ORIGIN_SCHEME EDGE_ORIGIN_AUTHORITY
+
+# Private services, as scheme://host:port without a path.
+EDGE_UPSTREAM_OAUTH2_PROXY="${EDGE_UPSTREAM_OAUTH2_PROXY:-http://oauth2-proxy:4180}"
+EDGE_UPSTREAM_KEYCLOAK="${EDGE_UPSTREAM_KEYCLOAK:-http://keycloak:8080}"
+EDGE_UPSTREAM_VALIDATOR="${EDGE_UPSTREAM_VALIDATOR:-http://validator:8082}"
+export EDGE_UPSTREAM_OAUTH2_PROXY EDGE_UPSTREAM_KEYCLOAK EDGE_UPSTREAM_VALIDATOR
+
+# Upstream names are re-resolved at request time, so a restarted private service with a new
+# address is picked up. Defaults to the container's own DNS server.
+EDGE_RESOLVER="${EDGE_RESOLVER:-$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf)}"
+case "$EDGE_RESOLVER" in *:*) EDGE_RESOLVER="[$EDGE_RESOLVER]" ;; esac
+export EDGE_RESOLVER
 
 CSP_SCRIPT_HASHES=$(cat /etc/nginx/csp-script-hashes.txt)
 export CSP_SCRIPT_HASHES

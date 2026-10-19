@@ -74,7 +74,23 @@ docker run --rm -p 8080:8080 -e EDGE_ORIGIN=http://localhost:8080 csaf-cms-edge
 SMOKE_BASE_URL=http://localhost:8080 npm run test:smoke
 ```
 
-`test:smoke` runs the checks in `tests/smoke` against any base URL (default `http://localhost:8080`). It reads the editor file list from `build/client/secvisogram-editor`, so run it from a checkout with `build:prod` output.
+`test:smoke` runs the checks in `tests/smoke` against any base URL (default `http://localhost:8080`). It reads the editor file list from `build/client/secvisogram-editor`, so run it from a checkout with `build:prod` output. The checks in `private-services.spec.ts` need the private services behind the edge and fail when they are down; against the bare edge above, run only `edge.spec.ts`.
+
+### Edge in front of the development Compose stack
+
+The edge also proxies the private services: `/api/` and `/oauth2/` to oauth2-proxy, `/realms/csaf/` and `/resources/` to Keycloak (the browser is redirected to Keycloak on the public origin), and `/validate/api/v1/tests` and `/validate/api/v1/validate` to the validator (prefix stripped). Other realms (such as `master`) and `/admin/` return 404. Upstreams default to the Compose service names and can be set with `EDGE_UPSTREAM_OAUTH2_PROXY`, `EDGE_UPSTREAM_KEYCLOAK` and `EDGE_UPSTREAM_VALIDATOR` (`scheme://host:port`). Upstream names are re-resolved per request (resolver from `EDGE_RESOLVER`, default the container's DNS server), so restarting a private service does not require restarting the edge. Host and forwarded headers are derived from `EDGE_ORIGIN`.
+
+[`edge/compose.local.yaml`](edge/compose.local.yaml) is an overlay for the `csaf-cms-backend` development Compose stack of its PostgreSQL branch (`feat/couchdb-to-postgres-migration`). It disables the stack's `reverse-proxy`, pins the published backend image by digest and adds the edge on host port 80, because the stack's realm, Keycloak hostname and oauth2-proxy login URL are fixed to `http://localhost`.
+
+```sh
+# in csaf-cms-backend (PostgreSQL branch): follow docker/README.md to create .env and docker/.env,
+# including CSAF_COOKIE_SECRET. Stop any other stack that uses port 80.
+npm run build:prod && docker build -f edge/Dockerfile -t csaf-cms-edge .
+docker compose -f ../csaf-cms-backend/docker/compose.yaml -f edge/compose.local.yaml up -d edge backend-cms
+SMOKE_BASE_URL=http://localhost npm run test:smoke
+```
+
+Replace `../csaf-cms-backend` with a checkout of the PostgreSQL branch; on `main` (CouchDB) Compose stops with `depends on undefined service "cms-db"`. To keep another checkout untouched, use a worktree: `git worktree add ../csaf-cms-backend-pg origin/feat/couchdb-to-postgres-migration`. Its untracked `.env` and `docker/.env` must be created there (copy the `.env.example` files). Stop any other stack on the same ports and container names first (such as the CouchDB one).
 
 ## Testing
 
