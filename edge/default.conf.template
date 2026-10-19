@@ -14,6 +14,21 @@ server {
     # (connect-src 'self' also covers the /validate path).
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval' ${CSP_SCRIPT_HASHES}; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
 
+    # Shared by every proxied location. Host and forwarded headers describe the public origin, not
+    # the edge's own connection, so oauth2-proxy and Keycloak build correct redirect URLs.
+    resolver ${EDGE_RESOLVER} valid=10s ipv6=off;
+    proxy_http_version 1.1;
+    proxy_redirect off;
+    proxy_set_header Host ${EDGE_ORIGIN_AUTHORITY};
+    proxy_set_header X-Forwarded-Host ${EDGE_ORIGIN_AUTHORITY};
+    proxy_set_header X-Forwarded-Proto ${EDGE_ORIGIN_SCHEME};
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_buffer_size 16k;
+    proxy_buffers 8 16k;
+    proxy_busy_buffers_size 32k;
+    client_max_body_size 20m;
+
     location = /.well-known/appspecific/de.bsi.secvisogram.json {
         default_type application/json;
         expires -1;
@@ -27,6 +42,61 @@ server {
     location ^~ /assets/ {
         expires 1y;
         try_files $uri =404;
+    }
+
+    # Private services. Only these paths are proxied. Upstreams go through variables so nginx
+    # resolves them per request instead of once at start; with a variable, proxy_pass without a
+    # URI forwards the original URI, and one with a URI replaces it (arguments re-added by hand).
+    location ^~ /api/ {
+        set $oauth2_proxy ${EDGE_UPSTREAM_OAUTH2_PROXY};
+        proxy_pass $oauth2_proxy;
+    }
+
+    location ^~ /oauth2/ {
+        set $oauth2_proxy ${EDGE_UPSTREAM_OAUTH2_PROXY};
+        proxy_pass $oauth2_proxy;
+    }
+
+    location = /validate/api/v1/tests {
+        set $validator ${EDGE_UPSTREAM_VALIDATOR};
+        proxy_pass $validator/api/v1/tests$is_args$args;
+    }
+
+    location = /validate/api/v1/validate {
+        set $validator ${EDGE_UPSTREAM_VALIDATOR};
+        proxy_pass $validator/api/v1/validate$is_args$args;
+    }
+
+    # The browser follows oauth2-proxy's redirect to Keycloak on this origin. Keycloak sets its own
+    # CSP and framing headers, so the edge CSP and X-Frame-Options are left out here; any
+    # add_header in a location drops the inherited ones, hence the repeats.
+    location ^~ /realms/csaf/ {
+        set $keycloak ${EDGE_UPSTREAM_KEYCLOAK};
+        proxy_pass $keycloak;
+        proxy_hide_header Strict-Transport-Security;
+        proxy_hide_header X-Content-Type-Options;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "same-origin" always;
+    }
+
+    location ^~ /resources/ {
+        set $keycloak ${EDGE_UPSTREAM_KEYCLOAK};
+        proxy_pass $keycloak;
+        proxy_hide_header Strict-Transport-Security;
+        proxy_hide_header X-Content-Type-Options;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "same-origin" always;
+    }
+
+    # Every realm but csaf (notably master) and the admin console stay private.
+    location ^~ /realms/ {
+        return 404;
+    }
+
+    location ^~ /admin/ {
+        return 404;
     }
 
     location / {
