@@ -45,6 +45,15 @@ export function NotificationProvider({
   const nextId = useRef(0)
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   const activeIds = useRef(new Map<string, number>())
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // A popover joins the top layer when shown, so re-showing it on every change keeps toasts above a modal opened after them.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    if (container.matches(':popover-open')) container.hidePopover()
+    if (notifications.length > 0) container.showPopover()
+  }, [notifications])
 
   useEffect(() => {
     const pending = timers.current
@@ -82,7 +91,11 @@ export function NotificationProvider({
   return (
     <NotificationContext.Provider value={{ notify }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      <div
+        ref={containerRef}
+        popover="manual"
+        className="fixed inset-auto bottom-16 right-4 m-0 flex flex-col gap-2 overflow-visible border-0 bg-transparent p-0"
+      >
         {notifications.map((notification) => (
           <div
             key={notification.id}

@@ -26,6 +26,17 @@ export default {
   editPage: {
     heading: 'Edit Page for Advisory with id',
   },
+  saveFooter: {
+    valid: 'Document is valid',
+    invalid: 'Document is invalid',
+    save: 'Save…',
+    summary: 'Summary',
+    legacyVersion: 'Legacy version',
+    cancel: 'Cancel',
+    submit: 'Save',
+    saved: 'Advisory saved',
+    saveFailed: 'Could not save the advisory',
+  },
   appConfigError: {
     heading: 'Configuration unavailable',
     body: 'The application configuration could not be loaded.',
