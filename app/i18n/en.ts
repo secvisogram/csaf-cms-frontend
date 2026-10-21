@@ -26,6 +26,22 @@ export default {
   editPage: {
     heading: 'Edit Page for Advisory with id',
   },
+  newDialog: {
+    title: 'New document',
+    blank: 'Blank document',
+    useTemplate: 'Use a template',
+    template: 'Template',
+    loadingTemplates: 'Loading templates…',
+    templatesUnavailable: 'No templates are available.',
+    cancel: 'Cancel',
+    create: 'Create',
+  },
+  newPage: {
+    heading: 'New document',
+    loadFailed: 'The new document could not be loaded.',
+    saved: 'Advisory created.',
+    saveFailed: 'The advisory could not be created.',
+  },
   saveFooter: {
     valid: 'Document is valid',
     invalid: 'Document is invalid',
