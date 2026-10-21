@@ -25,6 +25,17 @@ describe('SaveFooter', () => {
       .toBeDisabled()
   })
 
+  it('shows the heading next to the validity when given', async () => {
+    const screen = await render(
+      <SaveFooter heading="Edit advisory abc" valid onSave={vi.fn()} />,
+    )
+
+    await expect
+      .element(screen.getByRole('heading', { name: 'Edit advisory abc' }))
+      .toBeVisible()
+    await expect.element(screen.getByText('Document is valid')).toBeVisible()
+  })
+
   it.each(['', '   '])(
     'does not submit when the summary is %j',
     async (summary) => {

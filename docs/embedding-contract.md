@@ -34,6 +34,10 @@ All properties are set as JavaScript properties on the element, not as string at
 - When set, the editor may call `POST {validatorUrl}/api/v1/validate` directly when the user requests remote validation.
 - When unset, client-side validation continues and no remote request is made.
 
+## Layout
+
+The host sizes the element (`display: block` with a definite height, for example as a flex item with `min-height: 0`). The editor fills that height and scrolls its panes internally; it must not size itself to the viewport (`100vh`). Editors that still do are tolerated by the host's `overflow: auto` on the element, which then scrolls inside the host box.
+
 ## Events
 
 Both events are standard `CustomEvent`s dispatched on the `<secvisogram-editor>` element. Hosts must attach their listeners to the element itself; bubbling is not guaranteed.

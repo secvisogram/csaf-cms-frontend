@@ -3,6 +3,16 @@ const html = String.raw
 
 const styles = new CSSStyleSheet()
 styles.replaceSync(css`
+  /* Like the real editor: fills the host and scrolls internally. */
+  .root {
+    height: 100%;
+    overflow: auto;
+  }
+
+  .tall-content {
+    height: 150vh;
+  }
+
   .container {
     display: block;
     border: solid 1px black;
@@ -40,17 +50,24 @@ class SecvisogramEditorElement extends HTMLElement {
     shadowRoot.adoptedStyleSheets = [styles]
 
     shadowRoot.innerHTML = html`
-      <div class="container">
-        <span class="title">Secvisogram Mock</span>
-        <p>
-          This is a mock for testing purposes. In future in a production setup,
-          this will be replaced by the real downstripped secvisogram editor.
-        </p>
-        <textarea data-testid="secvisogram-mock-doc"></textarea>
-        <label>
-          <input type="checkbox" data-testid="secvisogram-mock-valid-toggle" />
-          Document is valid (uncheck to simulate an invalid document)
-        </label>
+      <div class="root">
+        <div class="container">
+          <span class="title">Secvisogram Mock</span>
+          <p>
+            This is a mock for testing purposes. In future in a production
+            setup, this will be replaced by the real downstripped secvisogram
+            editor.
+          </p>
+          <textarea data-testid="secvisogram-mock-doc"></textarea>
+          <label>
+            <input
+              type="checkbox"
+              data-testid="secvisogram-mock-valid-toggle"
+            />
+            Document is valid (uncheck to simulate an invalid document)
+          </label>
+          <div class="tall-content"></div>
+        </div>
       </div>
     `
 
