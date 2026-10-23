@@ -6,11 +6,25 @@ import {
   Scripts,
   ScrollRestoration,
 } from 'react-router'
+import { useTranslation } from 'react-i18next'
 
+import { AppConfigError, getAppConfig } from '~/auth/appConfig'
+import { getUserInfo } from '~/auth/userInfo'
+import { EditorScript } from '~/EditorScript'
+import '~/i18n/i18n'
+import { NotificationProvider } from '~/notifications/NotificationContext'
 import type { Route } from './+types/root'
 import './app.css'
 
 export const links: Route.LinksFunction = () => []
+
+export const clientLoader = async () => {
+  const [appConfig, userInfo] = await Promise.all([
+    getAppConfig(),
+    getUserInfo(),
+  ])
+  return { appConfig, userInfo }
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,16 +42,39 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
         <ScrollRestoration />
         <Scripts />
+        <EditorScript />
       </body>
     </html>
   )
 }
 
 export default function App() {
-  return <Outlet />
+  return (
+    <NotificationProvider>
+      <Outlet />
+    </NotificationProvider>
+  )
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  const { t } = useTranslation()
+
+  if (error instanceof AppConfigError) {
+    return (
+      <main className="pt-16 p-4 container mx-auto">
+        <h1>{t('appConfigError.heading')}</h1>
+        <p>{t('appConfigError.body')}</p>
+        <button
+          type="button"
+          className="underline"
+          onClick={() => window.location.reload()}
+        >
+          {t('appConfigError.retry')}
+        </button>
+      </main>
+    )
+  }
+
   let message = 'Oops!'
   let details = 'An unexpected error occurred.'
   let stack: string | undefined
