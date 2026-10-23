@@ -245,3 +245,33 @@ test('shows an error toast and keeps the modal when the save request rejects', a
     dialog.getByRole('button', { name: 'Save', exact: true }),
   ).toBeEnabled()
 })
+
+for (const width of [1280, 1920]) {
+  test(`fills the shell's content area edge to edge and sits flush above the footer at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await mockBackend(page)
+
+    await page.goto('/some-advisory-id/edit')
+
+    const editor = page.locator('secvisogram-editor')
+    await expect(editor).toBeVisible()
+    const box = await editor.boundingBox()
+    const footer = await page.getByTestId('save_footer').boundingBox()
+    expect(box?.x).toBe(0)
+    expect(box?.width).toBe(width)
+    expect(footer?.y).toBeGreaterThan(0)
+    expect(
+      Math.abs((box?.y ?? 0) + (box?.height ?? 0) - (footer?.y ?? 0)),
+    ).toBeLessThanOrEqual(1)
+    await expect(page.getByTestId('save_footer')).toContainText(
+      'some-advisory-id',
+    )
+    const overflow = await editor.evaluate((el) => {
+      const container = el.parentElement?.closest('.overflow-auto')
+      return container ? container.scrollHeight - container.clientHeight : NaN
+    })
+    expect(overflow).toBe(0)
+  })
+}

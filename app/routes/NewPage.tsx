@@ -5,6 +5,7 @@ import { getAppConfig } from '~/auth/appConfig'
 import { createAdvisory, getTemplate } from '~/auth/backend'
 import { canCreateDocuments, getUserInfo } from '~/auth/userInfo'
 import { BLANK_DOCUMENT } from '~/blankDocument'
+import { EditorPageLayout } from '~/components/EditorPageLayout'
 import { SaveFooter, type SaveFields } from '~/components/SaveFooter'
 import { useNotification } from '~/notifications/NotificationContext'
 import { useEditorHost } from '~/useEditorHost'
@@ -56,14 +57,12 @@ const NewPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto mt-2 px-4 pb-16">
-      <h2 className="text-lg font-bold">{t('newPage.heading')}</h2>
-      <secvisogram-editor ref={editorRef}></secvisogram-editor>
+    <EditorPageLayout editorRef={editorRef}>
       <pre data-testid="new_page_tracked_doc" hidden>
         {JSON.stringify(doc)}
       </pre>
-      <SaveFooter valid={valid} onSave={save} />
-    </div>
+      <SaveFooter heading={t('newPage.heading')} valid={valid} onSave={save} />
+    </EditorPageLayout>
   )
 }
 
