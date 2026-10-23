@@ -2,14 +2,7 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     new: 'New',
-    export: 'Export',
-  },
-  statusBar: {
-    documentInvalid: 'Document is invalid:',
-    documentValid: 'Document is valid:',
-    errors: 'errors',
-    warnings: 'warnings',
-    infos: 'infos',
+    logout: 'Logout',
   },
   dashboard: {
     heading: 'Advisory Dashboard',
