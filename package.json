@@ -2,7 +2,7 @@
   "name": "@secvisogram/csaf-cms-frontend",
   "private": true,
   "keywords": [],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "eXXcellent solutions GmbH",
   "type": "module",
   "scripts": {

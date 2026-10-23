@@ -28,7 +28,7 @@ The csaf-cms-frontend is the web-based user interface for managing CSAF security
 | Convention                | Explanation                                                                                              |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Oxfmt for code formatting | Is compatible to prettier and the formatting conventions used across the other secvisogram-family repos. |
-| MIT license               | Matches the other projects in the ecosystem.                                                             |
+| Apache-2.0 license        | License for the csaf-cms-frontend project.                                                               |
 
 ## Context and Scope
 
