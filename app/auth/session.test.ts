@@ -14,6 +14,10 @@ function configResponse(loginUrl: string) {
   )
 }
 
+function currentHref(): string {
+  return (window as unknown as { location: { href: string } }).location.href
+}
+
 describe('fetchApiOrRedirect', () => {
   // A fresh module graph per test gives an empty app-config cache.
   beforeEach(async () => {
@@ -83,30 +87,71 @@ describe('fetchApiOrRedirect', () => {
     ).toBe('https://cms.example/some/page')
   })
 
-  it.each([401, 403])(
-    'redirects to login on a %d response instead of resolving',
+  it('redirects to login on a 401 response instead of resolving', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('.well-known')) {
+          return configResponse('/oauth2/sign_in')
+        }
+        return new Response(null, { status: 401 })
+      }),
+    )
+
+    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow()
+
+    expect(currentHref()).toBe(
+      'https://cms.example/oauth2/sign_in?rd=https%3A%2F%2Fcms.example%2Fsome%2Fpage',
+    )
+  })
+
+  it('resolves a 403 as an API error without redirecting', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 403 })),
+    )
+
+    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).resolves.toEqual({
+      ok: false,
+      error: {
+        status: 403,
+        message: 'Request failed with status 403',
+        body: null,
+      },
+    })
+    expect(currentHref()).toBe('https://cms.example/some/page')
+  })
+
+  it.each([413, 502, 504])(
+    'resolves a %d HTML response as an API error with the raw text in error.body',
     async (status) => {
+      const html = `<html><body>Error ${status}</body></html>`
       vi.stubGlobal(
         'fetch',
-        vi.fn(async (input: RequestInfo | URL) => {
-          if (String(input).includes('.well-known')) {
-            return configResponse('/oauth2/sign_in')
-          }
-          return new Response(null, { status })
-        }),
+        vi.fn(
+          async () =>
+            new Response(html, {
+              status,
+              headers: { 'Content-Type': 'text/html' },
+            }),
+        ),
       )
 
-      await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow()
-
-      const href = (window as unknown as { location: { href: string } })
-        .location.href
-      expect(href).toBe(
-        'https://cms.example/oauth2/sign_in?rd=https%3A%2F%2Fcms.example%2Fsome%2Fpage',
+      await expect(fetchApiOrRedirect('/api/v1/advisories/1')).resolves.toEqual(
+        {
+          ok: false,
+          error: {
+            status,
+            message: `Request failed with status ${status}`,
+            body: html,
+          },
+        },
       )
+      expect(currentHref()).toBe('https://cms.example/some/page')
     },
   )
 
-  it('redirects to login when the fetch itself fails (network error)', async () => {
+  it('rejects without redirecting when the fetch itself fails (network error)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -114,22 +159,35 @@ describe('fetchApiOrRedirect', () => {
       }),
     )
 
-    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow()
+    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow(
+      'network down',
+    )
+    expect(currentHref()).toBe('https://cms.example/some/page')
+    expect(
+      sessionStorage.getItem('csaf-cms-frontend.auth-redirect-in-progress'),
+    ).toBeNull()
   })
 
-  it('redirects to login when the response body is not valid JSON or plain text', async () => {
+  it('redirects to login when a 2xx response body is not valid JSON or plain text', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(
-        async () =>
-          new Response('<html>login page</html>', {
-            status: 200,
-            headers: { 'Content-Type': 'text/html' },
-          }),
-      ),
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('.well-known')) {
+          return configResponse('/oauth2/sign_in')
+        }
+        return new Response('<html>login page</html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      }),
     )
 
-    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow()
+    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow(
+      'redirecting to login',
+    )
+    expect(currentHref()).toBe(
+      'https://cms.example/oauth2/sign_in?rd=https%3A%2F%2Fcms.example%2Fsome%2Fpage',
+    )
   })
 
   it('resolves a plain-text body as the raw string (new revision responses)', async () => {
@@ -212,6 +270,66 @@ describe('fetchApiOrRedirect', () => {
       expect(fetchMock.mock.calls[0]![0]).toBe('/api/v1/about')
       const init = fetchMock.mock.calls[1]![1]
       expect(new Headers(init?.headers).get('X-XSRF-TOKEN')).toBe('fresh')
+    })
+
+    it('rejects without sending the mutation or redirecting when the cookie lookup fails', async () => {
+      vi.stubGlobal('document', { cookie: '' })
+      const fetchMock = vi.fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) => {
+          throw new Error('about unreachable')
+        },
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        fetchApiOrRedirect('/api/v1/advisories', { method: 'POST' }),
+      ).rejects.toThrow('about unreachable')
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock.mock.calls[0]![0]).toBe('/api/v1/about')
+      expect(currentHref()).toBe('https://cms.example/some/page')
+    })
+
+    it('sends the mutation without the header when no token is available and returns a 403 as an API error', async () => {
+      vi.stubGlobal('document', { cookie: '' })
+      const fetchMock = vi.fn(
+        async (input: RequestInfo | URL, _init?: RequestInit) =>
+          String(input) === '/api/v1/about'
+            ? new Response(JSON.stringify({}), { status: 200 })
+            : new Response(null, { status: 403 }),
+      )
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(
+        fetchApiOrRedirect('/api/v1/advisories', { method: 'POST' }),
+      ).resolves.toEqual({
+        ok: false,
+        error: {
+          status: 403,
+          message: 'Request failed with status 403',
+          body: null,
+        },
+      })
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      const init = fetchMock.mock.calls[1]![1]
+      expect(new Headers(init?.headers).has('X-XSRF-TOKEN')).toBe(false)
+      expect(currentHref()).toBe('https://cms.example/some/page')
+    })
+
+    it('rejects without redirecting when the mutation fetch fails after a successful lookup', async () => {
+      vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=tok' })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new Error('network down')
+        }),
+      )
+
+      await expect(
+        fetchApiOrRedirect('/api/v1/advisories', { method: 'POST' }),
+      ).rejects.toThrow('network down')
+      expect(currentHref()).toBe('https://cms.example/some/page')
     })
   })
 
