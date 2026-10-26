@@ -255,6 +255,12 @@ for (const width of [1280, 1920]) {
 
     await page.goto('/some-advisory-id/edit')
 
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: 'Edit Page for Advisory with id some-advisory-id',
+      }),
+    ).toBeVisible()
     const editor = page.locator('secvisogram-editor')
     await expect(editor).toBeVisible()
     const box = await editor.boundingBox()
@@ -268,9 +274,10 @@ for (const width of [1280, 1920]) {
     await expect(page.getByTestId('save_footer')).toContainText(
       'some-advisory-id',
     )
-    const overflow = await editor.evaluate((el) => {
-      const container = el.parentElement?.closest('.overflow-auto')
-      return container ? container.scrollHeight - container.clientHeight : NaN
+    const shellContent = page.getByTestId('shell-content')
+    await expect(shellContent).toBeVisible()
+    const overflow = await shellContent.evaluate((el) => {
+      return el.scrollHeight - el.clientHeight
     })
     expect(overflow).toBe(0)
   })

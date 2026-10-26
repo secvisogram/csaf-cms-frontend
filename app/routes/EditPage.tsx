@@ -29,6 +29,7 @@ const EditPage: React.FC = () => {
   const data = useLoaderData<typeof clientLoader>()
   const { t } = useTranslation()
   const { editorRef, doc, valid } = useEditorHost(data.csaf, data.validatorUrl)
+  const heading = `${t('editPage.heading')} ${data.advisoryId}`
   const [revision, setRevision] = useState(data.revision)
   const { notify } = useNotification()
 
@@ -52,7 +53,7 @@ const EditPage: React.FC = () => {
   }
 
   return (
-    <EditorPageLayout editorRef={editorRef}>
+    <EditorPageLayout editorRef={editorRef} heading={heading}>
       {/* Test-only seam for the tracked doc/validity state; ticket 18 reads this for Save. */}
       <pre data-testid="edit_page_tracked_doc" hidden>
         {JSON.stringify(doc)}
@@ -60,15 +61,7 @@ const EditPage: React.FC = () => {
       <p data-testid="edit_page_tracked_valid" hidden>
         {String(valid)}
       </p>
-      <SaveFooter
-        heading={
-          <>
-            {t('editPage.heading')} <code>{data.advisoryId}</code>
-          </>
-        }
-        valid={valid}
-        onSave={save}
-      />
+      <SaveFooter heading={heading} valid={valid} onSave={save} />
     </EditorPageLayout>
   )
 }

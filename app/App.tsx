@@ -46,7 +46,10 @@ export const App: React.FC<{}> = () => {
             )}
           </div>
         </div>
-        <div className="row-span-2 overflow-auto relative h-full bg-white">
+        <div
+          data-testid="shell-content"
+          className="row-span-2 overflow-auto relative h-full bg-white"
+        >
           <Outlet />
         </div>
       </div>

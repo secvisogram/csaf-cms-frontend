@@ -38,6 +38,7 @@ const NewPage: React.FC = () => {
   const navigate = useNavigate()
   const { notify } = useNotification()
   const { editorRef, doc, valid } = useEditorHost(data.seed, data.validatorUrl)
+  const heading = t('newPage.heading')
 
   const save = async ({ summary, legacyVersion }: SaveFields) => {
     const result = await createAdvisory({
@@ -57,11 +58,11 @@ const NewPage: React.FC = () => {
   }
 
   return (
-    <EditorPageLayout editorRef={editorRef}>
+    <EditorPageLayout editorRef={editorRef} heading={heading}>
       <pre data-testid="new_page_tracked_doc" hidden>
         {JSON.stringify(doc)}
       </pre>
-      <SaveFooter heading={t('newPage.heading')} valid={valid} onSave={save} />
+      <SaveFooter heading={heading} valid={valid} onSave={save} />
     </EditorPageLayout>
   )
 }

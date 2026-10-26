@@ -300,6 +300,9 @@ for (const width of [1280, 1920]) {
 
     await page.goto('/new')
 
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'New document' }),
+    ).toBeVisible()
     const editor = page.locator('secvisogram-editor')
     await expect(editor).toBeVisible()
     const box = await editor.boundingBox()
@@ -310,5 +313,11 @@ for (const width of [1280, 1920]) {
     expect(
       Math.abs((box?.y ?? 0) + (box?.height ?? 0) - (footer?.y ?? 0)),
     ).toBeLessThanOrEqual(1)
+    const shellContent = page.getByTestId('shell-content')
+    await expect(shellContent).toBeVisible()
+    const overflow = await shellContent.evaluate((el) => {
+      return el.scrollHeight - el.clientHeight
+    })
+    expect(overflow).toBe(0)
   })
 }
