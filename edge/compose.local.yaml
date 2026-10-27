@@ -15,7 +15,7 @@ services:
         condition: service_healthy
 
   edge:
-    image: csaf-cms-edge
+    image: csaf-cms-edge:local
     restart: on-failure
     environment:
       # The stack's realm, Keycloak hostname and oauth2-proxy login URL are fixed to this origin.
