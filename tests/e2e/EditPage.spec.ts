@@ -245,3 +245,40 @@ test('shows an error toast and keeps the modal when the save request rejects', a
     dialog.getByRole('button', { name: 'Save', exact: true }),
   ).toBeEnabled()
 })
+
+for (const width of [1280, 1920]) {
+  test(`fills the shell's content area edge to edge and sits flush above the footer at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await mockBackend(page)
+
+    await page.goto('/some-advisory-id/edit')
+
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: 'Edit Page for Advisory with id some-advisory-id',
+      }),
+    ).toBeVisible()
+    const editor = page.locator('secvisogram-editor')
+    await expect(editor).toBeVisible()
+    const box = await editor.boundingBox()
+    const footer = await page.getByTestId('save_footer').boundingBox()
+    expect(box?.x).toBe(0)
+    expect(box?.width).toBe(width)
+    expect(footer?.y).toBeGreaterThan(0)
+    expect(
+      Math.abs((box?.y ?? 0) + (box?.height ?? 0) - (footer?.y ?? 0)),
+    ).toBeLessThanOrEqual(1)
+    await expect(page.getByTestId('save_footer')).toContainText(
+      'some-advisory-id',
+    )
+    const shellContent = page.getByTestId('shell-content')
+    await expect(shellContent).toBeVisible()
+    const overflow = await shellContent.evaluate((el) => {
+      return el.scrollHeight - el.clientHeight
+    })
+    expect(overflow).toBe(0)
+  })
+}

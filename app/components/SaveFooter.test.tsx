@@ -8,7 +8,9 @@ async function openModal(
   onSave = vi.fn().mockResolvedValue(true),
   valid = true,
 ) {
-  const screen = await render(<SaveFooter valid={valid} onSave={onSave} />)
+  const screen = await render(
+    <SaveFooter heading="Test page" valid={valid} onSave={onSave} />,
+  )
   await screen.getByRole('button', { name: 'Save…' }).click()
   return { screen, onSave }
 }
@@ -17,12 +19,31 @@ const submit = () => page.getByRole('button', { name: 'Save', exact: true })
 
 describe('SaveFooter', () => {
   it('shows the validity and disables Save… while invalid', async () => {
-    const screen = await render(<SaveFooter valid={false} onSave={vi.fn()} />)
+    const screen = await render(
+      <SaveFooter heading="Test page" valid={false} onSave={vi.fn()} />,
+    )
 
     await expect.element(screen.getByText('Document is invalid')).toBeVisible()
     await expect
       .element(screen.getByRole('button', { name: 'Save…' }))
       .toBeDisabled()
+  })
+
+  it('shows the heading next to the validity when given', async () => {
+    const screen = await render(
+      <SaveFooter heading="Edit advisory abc" valid onSave={vi.fn()} />,
+    )
+
+    await expect
+      .element(screen.getByRole('heading', { name: 'Edit advisory abc' }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('contentinfo', { name: 'Edit advisory abc' }))
+      .toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('heading', { name: 'Edit advisory abc' }))
+      .toHaveAttribute('title', 'Edit advisory abc')
+    await expect.element(screen.getByText('Document is valid')).toBeVisible()
   })
 
   it.each(['', '   '])(

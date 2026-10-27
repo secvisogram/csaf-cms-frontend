@@ -290,3 +290,34 @@ test('closes the New dialog with Escape', async ({ page }) => {
 
   await expect(dialog).toBeHidden()
 })
+
+for (const width of [1280, 1920]) {
+  test(`fills the shell's content area edge to edge and sits flush above the footer at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await mockBackend(page)
+
+    await page.goto('/new')
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'New document' }),
+    ).toBeVisible()
+    const editor = page.locator('secvisogram-editor')
+    await expect(editor).toBeVisible()
+    const box = await editor.boundingBox()
+    const footer = await page.getByTestId('save_footer').boundingBox()
+    expect(box?.x).toBe(0)
+    expect(box?.width).toBe(width)
+    expect(footer?.y).toBeGreaterThan(0)
+    expect(
+      Math.abs((box?.y ?? 0) + (box?.height ?? 0) - (footer?.y ?? 0)),
+    ).toBeLessThanOrEqual(1)
+    const shellContent = page.getByTestId('shell-content')
+    await expect(shellContent).toBeVisible()
+    const overflow = await shellContent.evaluate((el) => {
+      return el.scrollHeight - el.clientHeight
+    })
+    expect(overflow).toBe(0)
+  })
+}

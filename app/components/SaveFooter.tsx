@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Modal } from '~/components/Modal'
 
 export type SaveFields = { summary: string; legacyVersion: string }
 
 type SaveFooterProps = {
+  /** Page heading shown at the left of the bar. */
+  heading: string
   valid: boolean
   /**
    * Resolves true when the save succeeded, which closes the modal; false keeps it open with the entered values.
@@ -13,8 +15,13 @@ type SaveFooterProps = {
   onSave: (fields: SaveFields) => Promise<boolean>
 }
 
-export const SaveFooter: React.FC<SaveFooterProps> = ({ valid, onSave }) => {
+export const SaveFooter: React.FC<SaveFooterProps> = ({
+  heading,
+  valid,
+  onSave,
+}) => {
   const { t } = useTranslation()
+  const headingId = useId()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [summary, setSummary] = useState('')
@@ -38,20 +45,28 @@ export const SaveFooter: React.FC<SaveFooterProps> = ({ valid, onSave }) => {
 
   return (
     <>
-      <div
+      <footer
         data-testid="save_footer"
+        aria-labelledby={headingId}
         className="fixed bottom-0 left-0 right-0 z-10 flex items-center justify-between bg-slate-600 px-5 py-2 text-sm font-bold text-gray-300"
       >
-        <span>{valid ? t('saveFooter.valid') : t('saveFooter.invalid')}</span>
+        <div className="flex min-w-0 items-center gap-6">
+          <h2 id={headingId} title={heading} className="truncate">
+            {heading}
+          </h2>
+          <span className="shrink-0">
+            {valid ? t('saveFooter.valid') : t('saveFooter.invalid')}
+          </span>
+        </div>
         <button
           type="button"
           disabled={!valid}
           onClick={() => setOpen(true)}
-          className="rounded bg-slate-700 px-3 py-1 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="ml-4 shrink-0 rounded bg-slate-700 px-3 py-1 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('saveFooter.save')}
         </button>
-      </div>
+      </footer>
       {open && (
         <Modal
           label={t('saveFooter.save')}
