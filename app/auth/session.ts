@@ -78,25 +78,23 @@ function readXsrfToken(): string | undefined {
 }
 
 /**
- * Fetches an API endpoint. A 401/403, a network failure, or a body that is
+ * Fetches an API endpoint. A 401, or a successful (2xx) response whose body is
  * neither JSON nor plain text (e.g. oauth2-proxy returning its HTML login
- * page) are all treated as an expired/missing session and redirect to login
- * instead of resolving. Every other non-2xx status resolves
- * `{ ok: false, error }` for the caller to handle. Plain-text bodies (the
- * backend returns the new revision that way) resolve as the raw string.
+ * page), is treated as an expired/missing session and redirects to login
+ * instead of resolving. Every non-2xx status (including 403 and edge-generated
+ * HTML errors such as 413/502/504) resolves `{ ok: false, error }` for the
+ * caller to handle; non-JSON bodies are preserved as raw text in `error.body`.
+ * Rejected fetches (API or CSRF-cookie lookup) reject without redirecting.
+ * Plain-text bodies (the backend returns the new revision that way) resolve as
+ * the raw string.
  */
 export async function fetchApiOrRedirect<T>(
   path: string,
   init?: RequestInit,
 ): Promise<ApiResult<T>> {
-  let response: Response
-  try {
-    response = await fetch(path, await withCsrfHeader(init))
-  } catch {
-    return redirectToLogin()
-  }
+  const response = await fetch(path, await withCsrfHeader(init))
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     return redirectToLogin()
   }
 
@@ -106,7 +104,10 @@ export async function fetchApiOrRedirect<T>(
     try {
       body = JSON.parse(text)
     } catch {
-      if (!response.headers.get('content-type')?.startsWith('text/plain')) {
+      if (
+        response.ok &&
+        !response.headers.get('content-type')?.startsWith('text/plain')
+      ) {
         return redirectToLogin()
       }
       body = text
