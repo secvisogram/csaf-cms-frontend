@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const advisories = [
   {
@@ -110,6 +110,131 @@ test('sorts rows by clicking a column header', async ({ page }) => {
 
   await expect(rows.nth(1)).toContainText('Buffer overflow in Foo')
   await expect(rows.nth(2)).toContainText('Authentication bypass in Bar')
+})
+
+test.describe('workflow-state change', () => {
+  const changeable = {
+    ...advisories[0],
+    allowedStateChanges: ['Review', 'Published'],
+  }
+
+  /** The mocked list and detail reflect a state change once the PATCH succeeded, like the real backend. */
+  async function mockWorkflowBackend(page: Page, patchStatus: number) {
+    const calls: string[] = []
+    let workflowState = 'Draft'
+    await page
+      .context()
+      .addCookies([
+        { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+      ])
+    await page.route('**/api/v1/advisories', (route) =>
+      route.fulfill({
+        json: [{ ...changeable, workflowState }, advisories[1]],
+      }),
+    )
+    await page.route('**/api/v1/advisories/advisory-1', (route) => {
+      calls.push('GET detail')
+      return route.fulfill({
+        json: { ...changeable, workflowState, revision: 'rev-2', csaf: {} },
+      })
+    })
+    await page.route(
+      '**/api/v1/advisories/advisory-1/workflowstate/**',
+      (route) => {
+        const url = new URL(route.request().url())
+        calls.push(`PATCH ${url.pathname}${url.search}`)
+        if (patchStatus !== 200) {
+          return route.fulfill({ status: patchStatus, json: { message: 'x' } })
+        }
+        workflowState = url.pathname.split('/').pop() ?? workflowState
+        return route.fulfill({
+          status: 200,
+          contentType: 'text/plain',
+          body: 'rev-3',
+        })
+      },
+    )
+    return calls
+  }
+
+  test('changes the state with a fresh revision and updates the row', async ({
+    page,
+  }) => {
+    const calls = await mockWorkflowBackend(page, 200)
+    await page.goto('/')
+
+    const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+    await expect(row.getByText('Draft')).toBeVisible()
+    await row.getByRole('button', { name: 'Change state' }).click()
+
+    const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
+    const options = await dialog
+      .getByLabel('New workflow state')
+      .locator('option')
+      .allTextContents()
+    expect(options).toEqual(['-- Choose --', 'Review', 'Published'])
+
+    await dialog.getByLabel('New workflow state').selectOption('Review')
+    await dialog.getByRole('button', { name: 'Change', exact: true }).click()
+
+    await expect(row.getByText('Review')).toBeVisible()
+    await expect(row.getByText('Draft')).not.toBeVisible()
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Workflow state changed' }),
+    ).toBeVisible()
+    await expect(dialog).not.toBeVisible()
+    expect(calls.slice(0, 2)).toEqual([
+      'GET detail',
+      'PATCH /api/v1/advisories/advisory-1/workflowstate/Review?revision=rev-2',
+    ])
+  })
+
+  test('sends the tracking status when publishing', async ({ page }) => {
+    const calls = await mockWorkflowBackend(page, 200)
+    await page.goto('/')
+
+    await page.getByRole('button', { name: 'Change state' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
+    await dialog.getByLabel('New workflow state').selectOption('Published')
+    await dialog.getByLabel('Document tracking status').selectOption('Final')
+    await dialog.getByRole('button', { name: 'Change', exact: true }).click()
+
+    await expect(dialog).not.toBeVisible()
+    expect(calls[1]).toBe(
+      'PATCH /api/v1/advisories/advisory-1/workflowstate/Published?revision=rev-2&documentTrackingStatus=Final',
+    )
+  })
+
+  test('shows an error toast and keeps the state when the change fails', async ({
+    page,
+  }) => {
+    await mockWorkflowBackend(page, 500)
+    await page.goto('/')
+
+    const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+    await row.getByRole('button', { name: 'Change state' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
+    await dialog.getByLabel('New workflow state').selectOption('Review')
+    await dialog.getByRole('button', { name: 'Change', exact: true }).click()
+
+    await expect(
+      page.getByRole('status').filter({ hasText: 'could not be changed' }),
+    ).toBeVisible()
+    await expect(row.getByText('Draft')).toBeVisible()
+  })
+
+  test('offers no action for an advisory without allowed state changes', async ({
+    page,
+  }) => {
+    await mockWorkflowBackend(page, 200)
+    await page.goto('/')
+
+    await expect(
+      page
+        .getByRole('row', { name: /Authentication bypass in Bar/ })
+        .getByRole('button', { name: 'Change state' }),
+    ).toHaveCount(0)
+  })
 })
 
 test('shows an error notification and an empty table when loading fails', async ({
