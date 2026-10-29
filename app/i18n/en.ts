@@ -14,7 +14,22 @@ export default {
       workflowState: 'Workflow State',
       owner: 'Owner',
       currentReleaseDate: 'Current Release Date',
+      actions: 'Actions',
     },
+    changeState: 'Change state',
+  },
+  workflowDialog: {
+    title: 'Change workflow state',
+    newState: 'New workflow state',
+    trackingStatus: 'Document tracking status',
+    choose: '-- Choose --',
+    cancel: 'Cancel',
+    submit: 'Change',
+    changed: 'Workflow state changed.',
+    changeFailed: 'The workflow state could not be changed.',
+    invalidDocument:
+      'The document is invalid and cannot be published. Please fix the errors first.',
+    validationUnavailable: 'The validation service could not be reached.',
   },
   editPage: {
     heading: 'Edit Page for Advisory with id',
