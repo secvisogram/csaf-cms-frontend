@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fakeStorage } from '~/testing/fakeStorage'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   changeWorkflowState,
   createAdvisory,
@@ -34,10 +33,6 @@ function mockFetchResolvingText(status: number, body: string) {
 }
 
 describe('typed backend client', () => {
-  beforeEach(() => {
-    vi.stubGlobal('sessionStorage', fakeStorage())
-  })
-
   afterEach(() => {
     vi.unstubAllGlobals()
   })

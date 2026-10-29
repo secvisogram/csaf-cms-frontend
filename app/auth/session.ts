@@ -10,26 +10,32 @@ export type ApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ApiError }
 
-const REDIRECT_GUARD_KEY = 'csaf-cms-frontend.auth-redirect-in-progress'
+let redirectTransition: Promise<never> | undefined
 
-/** Navigates to login, coalescing concurrent/looping failures into a single navigation. */
-async function redirectToLogin(): Promise<never> {
-  if (!sessionStorage.getItem(REDIRECT_GUARD_KEY)) {
-    sessionStorage.setItem(REDIRECT_GUARD_KEY, '1')
-    let loginUrl: string
-    try {
-      ;({ loginUrl } = await getAppConfig())
-    } catch (error) {
-      // Without a login URL no navigation happens, so the guard must not stay set.
-      sessionStorage.removeItem(REDIRECT_GUARD_KEY)
-      throw error
-    }
-    const target = new URL(loginUrl, window.location.origin)
-    target.searchParams.set('rd', window.location.href)
-    window.location.href = target.href
-  }
-  // The page is navigating away; there is nothing meaningful to hand back to the caller.
-  throw new Error('Session expired or missing; redirecting to login')
+/** Navigates to login once and shares the in-progress transition with all callers. */
+function redirectToLogin(): Promise<never> {
+  if (redirectTransition) return redirectTransition
+
+  let rejectTransition!: (error: unknown) => void
+  const transition = new Promise<never>((_resolve, reject) => {
+    rejectTransition = reject
+  })
+  redirectTransition = transition
+
+  return getAppConfig()
+    .then(({ loginUrl }) => {
+      const target = new URL(loginUrl, window.location.origin)
+      target.searchParams.set('rd', window.location.href)
+      window.location.href = target.href
+      // Navigation is in progress; all callers remain pending until the page unloads.
+      return new Promise<never>(() => {})
+    })
+    .catch((error) => {
+      // A failure before navigation leaves the app usable; allow a later request to retry.
+      if (redirectTransition === transition) redirectTransition = undefined
+      rejectTransition(error)
+      return transition
+    })
 }
 
 function toApiError(status: number, body: unknown): ApiError {
@@ -92,7 +98,11 @@ export async function fetchApiOrRedirect<T>(
   path: string,
   init?: RequestInit,
 ): Promise<ApiResult<T>> {
-  const response = await fetch(path, await withCsrfHeader(init))
+  if (redirectTransition) return redirectTransition
+
+  const requestInit = await withCsrfHeader(init)
+  if (redirectTransition) return redirectTransition
+  const response = await fetch(path, requestInit)
 
   if (response.status === 401) {
     return redirectToLogin()
@@ -113,8 +123,6 @@ export async function fetchApiOrRedirect<T>(
       body = text
     }
   }
-
-  sessionStorage.removeItem(REDIRECT_GUARD_KEY)
 
   if (!response.ok) {
     return { ok: false, error: toApiError(response.status, body) }
