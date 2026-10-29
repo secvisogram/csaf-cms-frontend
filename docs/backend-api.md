@@ -21,6 +21,8 @@ csaf-cms-frontend's own API client must reproduce, since it takes over every bac
 
 **Response bodies:** create (`POST /advisories`) responds `{ id, revision }` and update (`PATCH /advisories/{advisoryId}`) responds `{ revision }`.
 
+**Workflow-state parameters:** the backend has one handler per target state, so `documentTrackingStatus` is only optional for some of them. It is **required** (`Interim` or `Final`) when the target state is `Published`; omitting it yields a 400. `proposedTime` is optional for `RfPublication`, `AutoPublish` and `Published`.
+
 **CSRF:** the backend enables CSRF by default (`csaf.csrf.enabled`). Every non-GET/HEAD request must send the value of the `XSRF-TOKEN` cookie as an `X-XSRF-TOKEN` header; if the cookie is not set yet, a prior `GET /about` makes the backend set it.
 
 ## External validator service (companion microservice, not the CMS backend)
