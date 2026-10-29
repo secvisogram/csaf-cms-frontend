@@ -128,6 +128,21 @@ export function changeWorkflowState(
   )
 }
 
+/**
+ * Re-fetches the advisory's revision immediately before changing the workflow
+ * state, so a revision that went stale since the list was loaded is not used.
+ * Resolves the new revision.
+ */
+export async function changeWorkflowStateWithFreshRevision(
+  advisoryId: string,
+  state: string,
+  options: WorkflowStateChangeOptions = {},
+): Promise<ApiResult<string>> {
+  const detail = await getAdvisory(advisoryId)
+  if (!detail.ok) return detail
+  return changeWorkflowState(advisoryId, state, detail.data.revision, options)
+}
+
 /** Resolves the new revision. */
 export function createNewVersion(
   advisoryId: string,
