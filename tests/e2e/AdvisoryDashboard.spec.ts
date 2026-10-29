@@ -126,3 +126,93 @@ test('shows an error notification and an empty table when loading fails', async 
   await expect(page.getByRole('columnheader', { name: 'Title' })).toBeVisible()
   await expect(page.getByRole('row')).toHaveCount(1)
 })
+
+test('shows an Edit link in the Actions column only for changeable advisories', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('columnheader', { name: 'Actions' }),
+  ).toBeVisible()
+
+  const editable = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+  const readOnly = page.getByRole('row', {
+    name: /Authentication bypass in Bar/,
+  })
+  await expect(editable.getByRole('link', { name: 'Edit' })).toBeVisible()
+  await expect(readOnly.getByRole('link', { name: 'Edit' })).toHaveCount(0)
+})
+
+test('the Edit link opens the advisory edit page', async ({ page }) => {
+  await page.goto('/')
+
+  await page
+    .getByRole('row', { name: /Buffer overflow in Foo/ })
+    .getByRole('link', { name: 'Edit' })
+    .click()
+
+  await expect(page).toHaveURL('/advisory-1/edit')
+})
+
+test('clicking a row opens its edit page for read-only advisories too', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/advisories/advisory-2', (route) =>
+    route.fulfill({
+      json: {
+        ...advisories[1],
+        revision: 'rev-1',
+        csaf: { document: { csaf_version: '2.1' } },
+      },
+    }),
+  )
+  await page.goto('/')
+
+  await page
+    .getByRole('row', { name: /Authentication bypass in Bar/ })
+    .getByRole('link', { name: 'Authentication bypass in Bar' })
+    .click()
+
+  await expect(page).toHaveURL('/advisory-2/edit')
+})
+
+test('the Actions column header is not a sort control and is not filtered', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const header = page.getByRole('columnheader', { name: 'Actions' })
+  await expect(header.getByRole('button')).toHaveCount(0)
+
+  await header.click()
+  const rows = page.getByRole('row')
+  await expect(rows.nth(1)).toContainText('Buffer overflow in Foo')
+  await expect(rows.nth(2)).toContainText('Authentication bypass in Bar')
+
+  await page.getByRole('textbox', { name: 'Filter advisories' }).fill('Edit')
+  await expect(page.getByRole('row')).toHaveCount(1)
+})
+
+test('hides the New button for users without the author group', async ({
+  page,
+}) => {
+  await page.route('**/oauth2/userinfo', (route) =>
+    route.fulfill({ json: { groups: [] } }),
+  )
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('heading', { name: 'Advisory Dashboard' }),
+  ).toBeVisible()
+  await expect(page.getByTestId('new_document_button')).toHaveCount(0)
+})
+
+test('shows the New button for users in the author group', async ({ page }) => {
+  await page.route('**/oauth2/userinfo', (route) =>
+    route.fulfill({ json: { groups: ['author'] } }),
+  )
+  await page.goto('/')
+
+  await expect(page.getByTestId('new_document_button')).toHaveText('New')
+})
