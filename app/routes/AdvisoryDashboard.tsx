@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { href, Link } from 'react-router'
+import { href, Link, useRevalidator } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   columnFilteringFeature,
@@ -16,6 +16,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { listAdvisories, type AdvisoryListItem } from '~/auth/backend'
+import { WorkflowStateDialog } from '~/components/WorkflowStateDialog'
 import { useNotification } from '~/notifications/NotificationContext'
 import type { Route } from './+types/AdvisoryDashboard'
 
@@ -43,6 +44,27 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
   const { notify } = useNotification()
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [stateDialogAdvisory, setStateDialogAdvisory] =
+    useState<AdvisoryListItem | null>(null)
+  const [stateOverrides, setStateOverrides] = useState<Record<string, string>>(
+    {},
+  )
+  const revalidator = useRevalidator()
+
+  // Fresh loader data already carries the changed states.
+  useEffect(() => {
+    setStateOverrides({})
+  }, [loaderData.advisories])
+
+  const advisories = useMemo(
+    () =>
+      loaderData.advisories.map((advisory) => ({
+        ...advisory,
+        workflowState:
+          stateOverrides[advisory.advisoryId] ?? advisory.workflowState,
+      })),
+    [loaderData.advisories, stateOverrides],
+  )
 
   const columns = useMemo(
     () =>
@@ -62,6 +84,20 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
         columnHelper.accessor('currentReleaseDate', {
           header: t('dashboard.columns.currentReleaseDate'),
         }),
+        columnHelper.display({
+          id: 'actions',
+          header: t('dashboard.columns.actions'),
+          cell: ({ row }) =>
+            row.original.allowedStateChanges.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setStateDialogAdvisory(row.original)}
+                className="relative z-10 underline"
+              >
+                {t('dashboard.changeState')}
+              </button>
+            ) : null,
+        }),
       ]),
     [t],
   )
@@ -75,7 +111,7 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
   const table = useTable({
     features,
     columns,
-    data: loaderData.advisories,
+    data: advisories,
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -99,7 +135,9 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th key={header.id} scope="col" className="text-left px-4 py-2">
-                  {header.isPlaceholder ? null : (
+                  {header.isPlaceholder ? null : !header.column.getCanSort() ? (
+                    <table.FlexRender header={header} />
+                  ) : (
                     <button
                       type="button"
                       className="font-semibold w-full text-left"
@@ -136,6 +174,19 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
           ))}
         </tbody>
       </table>
+      {stateDialogAdvisory && (
+        <WorkflowStateDialog
+          advisory={stateDialogAdvisory}
+          onClose={() => setStateDialogAdvisory(null)}
+          onChanged={(state) => {
+            setStateOverrides((current) => ({
+              ...current,
+              [stateDialogAdvisory.advisoryId]: state,
+            }))
+            void revalidator.revalidate()
+          }}
+        />
+      )}
     </div>
   )
 }
