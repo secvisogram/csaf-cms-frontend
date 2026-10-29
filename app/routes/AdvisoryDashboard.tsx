@@ -62,6 +62,23 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
         columnHelper.accessor('currentReleaseDate', {
           header: t('dashboard.columns.currentReleaseDate'),
         }),
+        columnHelper.display({
+          id: 'actions',
+          header: t('dashboard.columns.actions'),
+          enableSorting: false,
+          enableGlobalFilter: false,
+          cell: ({ row }) =>
+            row.original.changeable ? (
+              <Link
+                className="relative z-10 underline"
+                to={href('/:advisoryId/edit', {
+                  advisoryId: row.original.advisoryId,
+                })}
+              >
+                {t('dashboard.actions.edit')}
+              </Link>
+            ) : null,
+        }),
       ]),
     [t],
   )
@@ -99,7 +116,11 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th key={header.id} scope="col" className="text-left px-4 py-2">
-                  {header.isPlaceholder ? null : (
+                  {header.isPlaceholder ? null : !header.column.getCanSort() ? (
+                    <span className="font-semibold">
+                      <table.FlexRender header={header} />
+                    </span>
+                  ) : (
                     <button
                       type="button"
                       className="font-semibold w-full text-left"
