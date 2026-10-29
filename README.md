@@ -67,14 +67,29 @@ npm run build:prod
 
 `edge/` holds an NGINX image that serves the `build:prod` output from one origin: the app with SPA fallback, the editor asset tree at `/secvisogram-editor/` and the app-config document, with HSTS, no-framing and a CSP suited to a public origin. `EDGE_ORIGIN` is the public origin used in the app config and is required at container start.
 
+The image builds its production frontend and installs the exact editor version in a multi-stage Docker build. The GitHub Packages token is needed only for editor installation. After logging in as described above, pass npm's user config to BuildKit as a secret:
+
 ```sh
-npm run build:prod
-docker build -f edge/Dockerfile -t csaf-cms-edge .
-docker run --rm -p 8080:8080 -e EDGE_ORIGIN=http://localhost:8080 csaf-cms-edge
-SMOKE_BASE_URL=http://localhost:8080 npm run test:smoke
+docker buildx build --load \
+  --secret id=github_npmrc,src="$HOME/.npmrc" \
+  -f edge/Dockerfile -t csaf-cms-edge:local .
 ```
 
-`test:smoke` runs the checks in `tests/smoke` against any base URL (default `http://localhost:8080`). It reads the editor file list from `build/client/secvisogram-editor`, so run it from a checkout with `build:prod` output. The checks in `private-services.spec.ts` need the private services behind the edge and fail when they are down; against the bare edge above, run only `edge.spec.ts`.
+Run the helper to start the image with `docker run` and execute the static edge smoke suite. It extracts the expected editor-asset inventory from the image before checking that every file is served:
+
+```sh
+npm ci
+npx playwright install chromium
+scripts/smoke-edge-image.sh csaf-cms-edge:local
+```
+
+`test:smoke` defaults to `http://localhost:8080`. The static checks in `edge.spec.ts` need no private services. `private-services.spec.ts` is for a running backend/auth/validator stack and is not run by the image CI job.
+
+### Release image publishing
+
+Same-repository pull requests build the production image and run the static edge smoke suite. Fork pull requests still run the regular test workflow, but skip the image build because they cannot access the private editor package token. Publishing runs only for a GitHub Release's `published` event: CI builds and smoke-tests the image, then publishes that tested image to `ghcr.io/secvisogram/csaf-cms-frontend` under the release tag and `sha-<full source commit SHA>`. Stable releases also update `latest`; prereleases do not. The workflow summary includes the immutable image digest and the editor version from `/secvisogram-editor/VERSION`.
+
+After the first release publish, a maintainer must make the GHCR package public once in the package's GitHub settings. Deployment and runtime secrets are managed separately and are not part of image publishing.
 
 ### Edge in front of the development Compose stack
 
@@ -85,7 +100,10 @@ The edge also proxies the private services: `/api/` and `/oauth2/` to oauth2-pro
 ```sh
 # in csaf-cms-backend (PostgreSQL branch): follow docker/README.md to create .env and docker/.env,
 # including CSAF_COOKIE_SECRET. Stop any other stack that uses port 80.
-npm run build:prod && docker build -f edge/Dockerfile -t csaf-cms-edge .
+npm ci --prefix vendor/secvisogram-editor
+npm run build:prod  # provides the expected asset inventory for the Compose smoke suite
+docker buildx build --load --secret id=github_npmrc,src="$HOME/.npmrc" \
+  -f edge/Dockerfile -t csaf-cms-edge:local .
 docker compose -f ../csaf-cms-backend/docker/compose.yaml -f edge/compose.local.yaml up -d edge backend-cms
 SMOKE_BASE_URL=http://localhost npm run test:smoke
 ```
