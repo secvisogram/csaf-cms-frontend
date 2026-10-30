@@ -14,6 +14,10 @@ export default {
       workflowState: 'Workflow State',
       owner: 'Owner',
       currentReleaseDate: 'Current Release Date',
+      actions: 'Actions',
+    },
+    actions: {
+      edit: 'Edit',
     },
   },
   editPage: {
