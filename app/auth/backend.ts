@@ -144,6 +144,19 @@ export function createNewVersion(
   )
 }
 
+/**
+ * Re-fetches the advisory's revision immediately before creating the new
+ * version, so a revision that went stale since the list was loaded is not used.
+ * Resolves the new revision.
+ */
+export async function createNewVersionWithFreshRevision(
+  advisoryId: string,
+): Promise<ApiResult<string>> {
+  const detail = await getAdvisory(advisoryId)
+  if (!detail.ok) return detail
+  return createNewVersion(advisoryId, detail.data.revision)
+}
+
 export function listTemplates(): Promise<ApiResult<TemplateSummary[]>> {
   return fetchApiOrRedirect(`${API_BASE}/advisories/templates`)
 }
