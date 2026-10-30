@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 const advisories = [
   {
@@ -125,4 +125,128 @@ test('shows an error notification and an empty table when loading fails', async 
   ).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Title' })).toBeVisible()
   await expect(page.getByRole('row')).toHaveCount(1)
+})
+
+const published = {
+  advisoryId: 'advisory-3',
+  workflowState: 'Published',
+  documentTrackingId: 'CSAFPX-2024-003',
+  title: 'Privilege escalation in Baz',
+  owner: 'carol',
+  changeable: false,
+  deletable: false,
+  canCreateVersion: true,
+  allowedStateChanges: [],
+  currentReleaseDate: '2024-03-10',
+}
+
+async function mockPublishedAdvisory(
+  page: Page,
+  onCreateVersion: (route: Route, revision: string | null) => Promise<void>,
+) {
+  await page
+    .context()
+    .addCookies([
+      { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+    ])
+  const listRequests: string[] = []
+  await page.route('**/api/v1/advisories', (route) => {
+    listRequests.push(route.request().url())
+    return route.fulfill({ json: [...advisories, published] })
+  })
+  await page.route('**/api/v1/advisories/advisory-3', (route) =>
+    route.fulfill({
+      json: { ...published, revision: 'rev-fresh', csaf: {} },
+    }),
+  )
+  await page.route(
+    '**/api/v1/advisories/advisory-3/createNewVersion**',
+    (route) =>
+      onCreateVersion(
+        route,
+        new URL(route.request().url()).searchParams.get('revision'),
+      ),
+  )
+  return listRequests
+}
+
+test('shows Create new version only for advisories with canCreateVersion', async ({
+  page,
+}) => {
+  await mockPublishedAdvisory(page, (route) => route.fulfill({ body: 'x' }))
+  await page.goto('/')
+
+  const button = page.getByRole('button', { name: 'Create new version' })
+  await expect(button).toHaveCount(2)
+  await expect(
+    page
+      .getByRole('row', { name: /Privilege escalation in Baz/ })
+      .getByRole('button', { name: 'Create new version' }),
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole('row', { name: /Authentication bypass in Bar/ })
+      .getByRole('button', { name: 'Create new version' }),
+  ).toHaveCount(0)
+})
+
+test('creates a new version with a freshly fetched revision, shows a success toast and refreshes the list', async ({
+  page,
+}) => {
+  let patchedRevision: string | null = null
+  const listRequests = await mockPublishedAdvisory(
+    page,
+    async (route, revision) => {
+      patchedRevision = revision
+      expect(route.request().method()).toBe('PATCH')
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain',
+        body: '2-new',
+      })
+    },
+  )
+  await page.goto('/')
+  await expect.poll(() => listRequests.length).toBe(1)
+
+  await page
+    .getByRole('row', { name: /Privilege escalation in Baz/ })
+    .getByRole('button', { name: 'Create new version' })
+    .click()
+
+  await expect(
+    page.getByRole('status').filter({ hasText: 'New version created' }),
+  ).toBeVisible()
+  expect(patchedRevision).toBe('rev-fresh')
+  await expect.poll(() => listRequests.length).toBe(2)
+  await expect(page).toHaveURL('/')
+})
+
+test('shows an error toast and does not refresh the list when creating a new version fails', async ({
+  page,
+}) => {
+  const listRequests = await mockPublishedAdvisory(page, (route) =>
+    route.fulfill({ status: 409, json: { message: 'conflict' } }),
+  )
+  await page.goto('/')
+  await expect.poll(() => listRequests.length).toBe(1)
+
+  await page
+    .getByRole('row', { name: /Privilege escalation in Baz/ })
+    .getByRole('button', { name: 'Create new version' })
+    .click()
+
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Could not create a new version' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'New version created' }),
+  ).toHaveCount(0)
+  expect(listRequests).toHaveLength(1)
+  await expect(page).toHaveURL('/')
+  await expect(
+    page.getByRole('row', { name: /Privilege escalation in Baz/ }),
+  ).toBeVisible()
 })
