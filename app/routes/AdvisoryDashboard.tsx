@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { href, Link } from 'react-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { href, Link, useRevalidator } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   columnFilteringFeature,
@@ -15,7 +15,11 @@ import {
   useTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { listAdvisories, type AdvisoryListItem } from '~/auth/backend'
+import {
+  createNewVersionWithFreshRevision,
+  listAdvisories,
+  type AdvisoryListItem,
+} from '~/auth/backend'
 import { useNotification } from '~/notifications/NotificationContext'
 import type { Route } from './+types/AdvisoryDashboard'
 
@@ -43,6 +47,27 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
   const { notify } = useNotification()
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [pendingVersionIds, setPendingVersionIds] = useState<string[]>([])
+  const revalidator = useRevalidator()
+
+  const createVersion = useCallback(
+    async (advisoryId: string) => {
+      setPendingVersionIds((current) => [...current, advisoryId])
+      const result = await createNewVersionWithFreshRevision(advisoryId).catch(
+        () => undefined,
+      )
+      setPendingVersionIds((current) =>
+        current.filter((id) => id !== advisoryId),
+      )
+      if (!result?.ok) {
+        notify({ reason: 'dashboard.versionCreateFailed', variant: 'error' })
+        return
+      }
+      notify({ reason: 'dashboard.versionCreated', variant: 'success' })
+      void revalidator.revalidate()
+    },
+    [notify, revalidator],
+  )
 
   const columns = useMemo(
     () =>
@@ -62,8 +87,25 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
         columnHelper.accessor('currentReleaseDate', {
           header: t('dashboard.columns.currentReleaseDate'),
         }),
+        columnHelper.display({
+          id: 'actions',
+          header: t('dashboard.columns.actions'),
+          enableSorting: false,
+          enableGlobalFilter: false,
+          cell: ({ row }) =>
+            row.original.canCreateVersion ? (
+              <button
+                type="button"
+                disabled={pendingVersionIds.includes(row.original.advisoryId)}
+                onClick={() => void createVersion(row.original.advisoryId)}
+                className="relative z-10 underline disabled:opacity-50"
+              >
+                {t('dashboard.createVersion')}
+              </button>
+            ) : null,
+        }),
       ]),
-    [t],
+    [t, createVersion, pendingVersionIds],
   )
 
   useEffect(() => {
@@ -99,7 +141,11 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
             <tr key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
                 <th key={header.id} scope="col" className="text-left px-4 py-2">
-                  {header.isPlaceholder ? null : (
+                  {header.isPlaceholder ? null : !header.column.getCanSort() ? (
+                    <span className="font-semibold">
+                      <table.FlexRender header={header} />
+                    </span>
+                  ) : (
                     <button
                       type="button"
                       className="font-semibold w-full text-left"
