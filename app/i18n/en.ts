@@ -14,7 +14,11 @@ export default {
       workflowState: 'Workflow State',
       owner: 'Owner',
       currentReleaseDate: 'Current Release Date',
+      actions: 'Actions',
     },
+    createVersion: 'Create new version',
+    versionCreated: 'New version created',
+    versionCreateFailed: 'Could not create a new version',
   },
   editPage: {
     heading: 'Edit Page for Advisory with id',
