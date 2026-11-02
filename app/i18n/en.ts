@@ -28,6 +28,7 @@ export default {
     title: 'Change workflow state',
     newState: 'New workflow state',
     trackingStatus: 'Document tracking status',
+    proposedTime: 'Proposed time',
     choose: '-- Choose --',
     cancel: 'Cancel',
     submit: 'Change',
