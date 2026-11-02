@@ -3,6 +3,8 @@ import React from 'react'
 type EditorPageLayoutProps = {
   editorRef: React.Ref<HTMLElement>
   heading: string
+  /** Rendered above the editor, e.g. a persistent notice. */
+  banner?: React.ReactNode
   children?: React.ReactNode
 }
 
@@ -11,10 +13,12 @@ type EditorPageLayoutProps = {
 export const EditorPageLayout: React.FC<EditorPageLayoutProps> = ({
   editorRef,
   heading,
+  banner,
   children,
 }) => (
   <div className="flex h-full flex-col pb-11">
     <h1 className="sr-only">{heading}</h1>
+    {banner}
     <secvisogram-editor
       ref={editorRef}
       className="block min-h-0 flex-1 overflow-auto"
