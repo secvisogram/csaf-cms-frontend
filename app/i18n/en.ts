@@ -16,7 +16,10 @@ export default {
       currentReleaseDate: 'Current Release Date',
       actions: 'Actions',
     },
-    createVersion: 'Create new version',
+    actions: {
+      edit: 'Edit',
+      createVersion: 'Create new version',
+    },
     versionCreated: 'New version created',
     versionCreateFailed: 'Could not create a new version',
   },

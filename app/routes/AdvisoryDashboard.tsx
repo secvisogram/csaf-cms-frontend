@@ -93,15 +93,31 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
           enableSorting: false,
           enableGlobalFilter: false,
           cell: ({ row }) =>
-            row.original.canCreateVersion ? (
-              <button
-                type="button"
-                disabled={pendingVersionIds.includes(row.original.advisoryId)}
-                onClick={() => void createVersion(row.original.advisoryId)}
-                className="relative z-10 underline disabled:opacity-50"
-              >
-                {t('dashboard.createVersion')}
-              </button>
+            row.original.changeable || row.original.canCreateVersion ? (
+              <div className="flex gap-3">
+                {row.original.changeable && (
+                  <Link
+                    className="relative z-10 underline"
+                    to={href('/:advisoryId/edit', {
+                      advisoryId: row.original.advisoryId,
+                    })}
+                  >
+                    {t('dashboard.actions.edit')}
+                  </Link>
+                )}
+                {row.original.canCreateVersion && (
+                  <button
+                    type="button"
+                    disabled={pendingVersionIds.includes(
+                      row.original.advisoryId,
+                    )}
+                    onClick={() => void createVersion(row.original.advisoryId)}
+                    className="relative z-10 underline disabled:opacity-50"
+                  >
+                    {t('dashboard.actions.createVersion')}
+                  </button>
+                )}
+              </div>
             ) : null,
         }),
       ]),
