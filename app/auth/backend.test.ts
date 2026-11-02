@@ -7,6 +7,7 @@ import {
   getAbout,
   getAdvisory,
   getTemplate,
+  isStaleRevisionError,
   listAdvisories,
   listTemplates,
   updateAdvisory,
@@ -195,5 +196,14 @@ describe('typed backend client', () => {
         body: { message: 'stale revision' },
       },
     })
+  })
+
+  it('isStaleRevisionError is true only for a 409 conflict', () => {
+    const error = (status: number) => ({ status, message: '', body: null })
+
+    expect(isStaleRevisionError(error(409))).toBe(true)
+    for (const status of [400, 404, 412, 500]) {
+      expect(isStaleRevisionError(error(status))).toBe(false)
+    }
   })
 })
