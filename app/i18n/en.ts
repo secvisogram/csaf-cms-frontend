@@ -16,7 +16,13 @@ export default {
       currentReleaseDate: 'Current Release Date',
       actions: 'Actions',
     },
-    changeState: 'Change state',
+    actions: {
+      edit: 'Edit',
+      createVersion: 'Create new version',
+      changeState: 'Change state',
+    },
+    versionCreated: 'New version created',
+    versionCreateFailed: 'Could not create a new version',
   },
   workflowDialog: {
     title: 'Change workflow state',

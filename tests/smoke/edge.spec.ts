@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-const EDITOR_TREE = 'build/client/secvisogram-editor'
+const EDITOR_TREE =
+  process.env.SMOKE_EDITOR_TREE ?? 'build/client/secvisogram-editor'
 
 function listFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>

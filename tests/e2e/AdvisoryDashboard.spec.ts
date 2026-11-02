@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 const advisories = [
   {
@@ -250,4 +250,218 @@ test('shows an error notification and an empty table when loading fails', async 
   ).toBeVisible()
   await expect(page.getByRole('columnheader', { name: 'Title' })).toBeVisible()
   await expect(page.getByRole('row')).toHaveCount(1)
+})
+
+const published = {
+  advisoryId: 'advisory-3',
+  workflowState: 'Published',
+  documentTrackingId: 'CSAFPX-2024-003',
+  title: 'Privilege escalation in Baz',
+  owner: 'carol',
+  changeable: false,
+  deletable: false,
+  canCreateVersion: true,
+  allowedStateChanges: [],
+  currentReleaseDate: '2024-03-10',
+}
+
+async function mockPublishedAdvisory(
+  page: Page,
+  onCreateVersion: (route: Route, revision: string | null) => Promise<void>,
+) {
+  await page
+    .context()
+    .addCookies([
+      { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+    ])
+  const listRequests: string[] = []
+  await page.route('**/api/v1/advisories', (route) => {
+    listRequests.push(route.request().url())
+    return route.fulfill({ json: [...advisories, published] })
+  })
+  await page.route('**/api/v1/advisories/advisory-3', (route) =>
+    route.fulfill({
+      json: { ...published, revision: 'rev-fresh', csaf: {} },
+    }),
+  )
+  await page.route(
+    '**/api/v1/advisories/advisory-3/createNewVersion**',
+    (route) =>
+      onCreateVersion(
+        route,
+        new URL(route.request().url()).searchParams.get('revision'),
+      ),
+  )
+  return listRequests
+}
+
+test('shows Create new version only for advisories with canCreateVersion', async ({
+  page,
+}) => {
+  await mockPublishedAdvisory(page, (route) => route.fulfill({ body: 'x' }))
+  await page.goto('/')
+
+  const button = page.getByRole('button', { name: 'Create new version' })
+  await expect(button).toHaveCount(2)
+  await expect(
+    page
+      .getByRole('row', { name: /Privilege escalation in Baz/ })
+      .getByRole('button', { name: 'Create new version' }),
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole('row', { name: /Authentication bypass in Bar/ })
+      .getByRole('button', { name: 'Create new version' }),
+  ).toHaveCount(0)
+})
+
+test('creates a new version with a freshly fetched revision, shows a success toast and refreshes the list', async ({
+  page,
+}) => {
+  let patchedRevision: string | null = null
+  const listRequests = await mockPublishedAdvisory(
+    page,
+    async (route, revision) => {
+      patchedRevision = revision
+      expect(route.request().method()).toBe('PATCH')
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain',
+        body: '2-new',
+      })
+    },
+  )
+  await page.goto('/')
+  await expect.poll(() => listRequests.length).toBe(1)
+
+  await page
+    .getByRole('row', { name: /Privilege escalation in Baz/ })
+    .getByRole('button', { name: 'Create new version' })
+    .click()
+
+  await expect(
+    page.getByRole('status').filter({ hasText: 'New version created' }),
+  ).toBeVisible()
+  expect(patchedRevision).toBe('rev-fresh')
+  await expect.poll(() => listRequests.length).toBe(2)
+  await expect(page).toHaveURL('/')
+})
+
+test('shows an error toast and does not refresh the list when creating a new version fails', async ({
+  page,
+}) => {
+  const listRequests = await mockPublishedAdvisory(page, (route) =>
+    route.fulfill({ status: 409, json: { message: 'conflict' } }),
+  )
+  await page.goto('/')
+  await expect.poll(() => listRequests.length).toBe(1)
+
+  await page
+    .getByRole('row', { name: /Privilege escalation in Baz/ })
+    .getByRole('button', { name: 'Create new version' })
+    .click()
+
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Could not create a new version' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'New version created' }),
+  ).toHaveCount(0)
+  expect(listRequests).toHaveLength(1)
+  await expect(page).toHaveURL('/')
+  await expect(
+    page.getByRole('row', { name: /Privilege escalation in Baz/ }),
+  ).toBeVisible()
+})
+
+test('shows an Edit link in the Actions column only for changeable advisories', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('columnheader', { name: 'Actions' }),
+  ).toBeVisible()
+
+  const editable = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+  const readOnly = page.getByRole('row', {
+    name: /Authentication bypass in Bar/,
+  })
+  await expect(editable.getByRole('link', { name: 'Edit' })).toBeVisible()
+  await expect(readOnly.getByRole('link', { name: 'Edit' })).toHaveCount(0)
+})
+
+test('the Edit link opens the advisory edit page', async ({ page }) => {
+  await page.goto('/')
+
+  await page
+    .getByRole('row', { name: /Buffer overflow in Foo/ })
+    .getByRole('link', { name: 'Edit' })
+    .click()
+
+  await expect(page).toHaveURL('/advisory-1/edit')
+})
+
+test('clicking a row opens its edit page for read-only advisories too', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/advisories/advisory-2', (route) =>
+    route.fulfill({
+      json: {
+        ...advisories[1],
+        revision: 'rev-1',
+        csaf: { document: { csaf_version: '2.1' } },
+      },
+    }),
+  )
+  await page.goto('/')
+
+  await page
+    .getByRole('row', { name: /Authentication bypass in Bar/ })
+    .getByRole('link', { name: 'Authentication bypass in Bar' })
+    .click()
+
+  await expect(page).toHaveURL('/advisory-2/edit')
+})
+
+test('the Actions column header is not a sort control and is not filtered', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  const header = page.getByRole('columnheader', { name: 'Actions' })
+  await expect(header.getByRole('button')).toHaveCount(0)
+
+  await header.click()
+  const rows = page.getByRole('row')
+  await expect(rows.nth(1)).toContainText('Buffer overflow in Foo')
+  await expect(rows.nth(2)).toContainText('Authentication bypass in Bar')
+
+  await page.getByRole('textbox', { name: 'Filter advisories' }).fill('Edit')
+  await expect(page.getByRole('row')).toHaveCount(1)
+})
+
+test('hides the New button for users without the author group', async ({
+  page,
+}) => {
+  await page.route('**/oauth2/userinfo', (route) =>
+    route.fulfill({ json: { groups: [] } }),
+  )
+  await page.goto('/')
+
+  await expect(
+    page.getByRole('heading', { name: 'Advisory Dashboard' }),
+  ).toBeVisible()
+  await expect(page.getByTestId('new_document_button')).toHaveCount(0)
+})
+
+test('shows the New button for users in the author group', async ({ page }) => {
+  await page.route('**/oauth2/userinfo', (route) =>
+    route.fulfill({ json: { groups: ['author'] } }),
+  )
+  await page.goto('/')
+
+  await expect(page.getByTestId('new_document_button')).toHaveText('New')
 })

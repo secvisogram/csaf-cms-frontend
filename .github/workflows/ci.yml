@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  release:
+    types:
+      - published
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -38,3 +41,138 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  edge-image:
+    name: Build and smoke-test production edge image
+    if: >-
+      github.event_name == 'release' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install smoke-test dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/secvisogram/csaf-cms-frontend
+          tags: |
+            type=raw,value=${{ github.event_name == 'release' && github.event.release.tag_name || format('pr-{0}', github.event.pull_request.number) }}
+          labels: |
+            org.opencontainers.image.title=csaf-cms-frontend
+            org.opencontainers.image.description=Web-based CMS shell for creating, editing, and reviewing CSAF security advisories.
+            org.opencontainers.image.source=https://github.com/secvisogram/csaf-cms-frontend
+            org.opencontainers.image.url=https://github.com/secvisogram/csaf-cms-frontend
+            org.opencontainers.image.licenses=Apache-2.0
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: 'true'
+
+      - name: Build production image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OCI_LABELS: ${{ steps.meta.outputs.labels }}
+        run: |
+          set -euo pipefail
+          npmrc=$(mktemp)
+          trap 'rm -f "$npmrc"' EXIT
+          printf '//npm.pkg.github.com/:_authToken=%s\n' "$GITHUB_TOKEN" > "$npmrc"
+          chmod 600 "$npmrc"
+
+          docker_label_args=()
+          while IFS= read -r label; do
+            [[ -n "$label" ]] && docker_label_args+=(--label "$label")
+          done <<< "$OCI_LABELS"
+
+          docker buildx build --load --platform linux/amd64 \
+            --secret id=github_npmrc,src="$npmrc" \
+            "${docker_label_args[@]}" \
+            --tag csaf-cms-edge:ci \
+            --file edge/Dockerfile .
+
+      - name: Run static edge smoke tests against the image
+        run: scripts/smoke-edge-image.sh csaf-cms-edge:ci
+
+      - name: Save tested release image
+        if: github.event_name == 'release'
+        run: docker save csaf-cms-edge:ci --output "$RUNNER_TEMP/csaf-cms-edge.tar"
+
+      - name: Upload tested release image
+        if: github.event_name == 'release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: csaf-cms-edge-image
+          path: ${{ runner.temp }}/csaf-cms-edge.tar
+          retention-days: 1
+
+  publish-edge-image:
+    name: Publish production edge image
+    needs:
+      - edge-image
+      - test
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download tested release image
+        uses: actions/download-artifact@v7
+        with:
+          name: csaf-cms-edge-image
+          path: ${{ runner.temp }}
+
+      - name: Load tested image
+        run: docker load --input "$RUNNER_TEMP/csaf-cms-edge.tar"
+
+      - name: Log in to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Publish release image and summarize immutable digest
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          SOURCE_SHA: ${{ github.sha }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/secvisogram/csaf-cms-frontend
+          tags=("$RELEASE_TAG" "sha-$SOURCE_SHA")
+          if [[ "$IS_PRERELEASE" != "true" ]]; then
+            tags+=(latest)
+          fi
+          for tag in "${tags[@]}"; do
+            docker tag csaf-cms-edge:ci "$image:$tag"
+            docker push "$image:$tag"
+          done
+          digest=$(docker buildx imagetools inspect "$image:$RELEASE_TAG" \
+            --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          editor_version=$(docker run --rm --entrypoint cat \
+            csaf-cms-edge:ci /usr/share/nginx/html/secvisogram-editor/VERSION)
+          {
+            echo '## Production edge image'
+            echo
+            echo "- Image: \`$image@$digest\`"
+            echo "- Release tag: \`$RELEASE_TAG\`"
+            echo "- Editor version: \`$editor_version\`"
+          } >> "$GITHUB_STEP_SUMMARY"

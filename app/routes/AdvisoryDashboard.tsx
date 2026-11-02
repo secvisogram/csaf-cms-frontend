@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { href, Link, useRevalidator } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
@@ -15,7 +15,11 @@ import {
   useTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { listAdvisories, type AdvisoryListItem } from '~/auth/backend'
+import {
+  createNewVersionWithFreshRevision,
+  listAdvisories,
+  type AdvisoryListItem,
+} from '~/auth/backend'
 import { WorkflowStateDialog } from '~/components/WorkflowStateDialog'
 import { useNotification } from '~/notifications/NotificationContext'
 import type { Route } from './+types/AdvisoryDashboard'
@@ -44,6 +48,7 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
   const { notify } = useNotification()
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [pendingVersionIds, setPendingVersionIds] = useState<string[]>([])
   const [stateDialogAdvisory, setStateDialogAdvisory] =
     useState<AdvisoryListItem | null>(null)
   const [stateOverrides, setStateOverrides] = useState<Record<string, string>>(
@@ -64,6 +69,25 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
           stateOverrides[advisory.advisoryId] ?? advisory.workflowState,
       })),
     [loaderData.advisories, stateOverrides],
+  )
+
+  const createVersion = useCallback(
+    async (advisoryId: string) => {
+      setPendingVersionIds((current) => [...current, advisoryId])
+      const result = await createNewVersionWithFreshRevision(advisoryId).catch(
+        () => undefined,
+      )
+      setPendingVersionIds((current) =>
+        current.filter((id) => id !== advisoryId),
+      )
+      if (!result?.ok) {
+        notify({ reason: 'dashboard.versionCreateFailed', variant: 'error' })
+        return
+      }
+      notify({ reason: 'dashboard.versionCreated', variant: 'success' })
+      void revalidator.revalidate()
+    },
+    [notify, revalidator],
   )
 
   const columns = useMemo(
@@ -87,19 +111,49 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
         columnHelper.display({
           id: 'actions',
           header: t('dashboard.columns.actions'),
+          enableSorting: false,
+          enableGlobalFilter: false,
           cell: ({ row }) =>
+            row.original.changeable ||
+            row.original.canCreateVersion ||
             row.original.allowedStateChanges.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setStateDialogAdvisory(row.original)}
-                className="relative z-10 underline"
-              >
-                {t('dashboard.changeState')}
-              </button>
+              <div className="flex gap-3">
+                {row.original.changeable && (
+                  <Link
+                    className="relative z-10 underline"
+                    to={href('/:advisoryId/edit', {
+                      advisoryId: row.original.advisoryId,
+                    })}
+                  >
+                    {t('dashboard.actions.edit')}
+                  </Link>
+                )}
+                {row.original.canCreateVersion && (
+                  <button
+                    type="button"
+                    disabled={pendingVersionIds.includes(
+                      row.original.advisoryId,
+                    )}
+                    onClick={() => void createVersion(row.original.advisoryId)}
+                    className="relative z-10 underline disabled:opacity-50"
+                  >
+                    {t('dashboard.actions.createVersion')}
+                  </button>
+                )}
+                {row.original.allowedStateChanges.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStateDialogAdvisory(row.original)}
+                    className="relative z-10 underline"
+                  >
+                    {t('dashboard.actions.changeState')}
+                  </button>
+                )}
+              </div>
             ) : null,
         }),
       ]),
-    [t],
+    [t, createVersion, pendingVersionIds],
   )
 
   useEffect(() => {
@@ -136,7 +190,9 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
               {headerGroup.headers.map((header) => (
                 <th key={header.id} scope="col" className="text-left px-4 py-2">
                   {header.isPlaceholder ? null : !header.column.getCanSort() ? (
-                    <table.FlexRender header={header} />
+                    <span className="font-semibold">
+                      <table.FlexRender header={header} />
+                    </span>
                   ) : (
                     <button
                       type="button"

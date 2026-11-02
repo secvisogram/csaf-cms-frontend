@@ -1,7 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fakeStorage } from '~/testing/fakeStorage'
 
 let fetchApiOrRedirect: typeof import('./session').fetchApiOrRedirect
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+async function expectPending(promise: Promise<unknown>) {
+  const outcome = await Promise.race([
+    promise.then(
+      () => 'resolved' as const,
+      () => 'rejected' as const,
+    ),
+    new Promise<'pending'>((resolve) =>
+      setTimeout(() => resolve('pending'), 0),
+    ),
+  ])
+  expect(outcome).toBe('pending')
+}
 
 function configResponse(loginUrl: string) {
   return new Response(
@@ -23,7 +45,6 @@ describe('fetchApiOrRedirect', () => {
   beforeEach(async () => {
     vi.resetModules()
     ;({ fetchApiOrRedirect } = await import('./session'))
-    vi.stubGlobal('sessionStorage', fakeStorage())
     vi.stubGlobal('window', {
       location: {
         origin: 'https://cms.example',
@@ -87,7 +108,7 @@ describe('fetchApiOrRedirect', () => {
     ).toBe('https://cms.example/some/page')
   })
 
-  it('redirects to login on a 401 response instead of resolving', async () => {
+  it('redirects to login on a 401 response and keeps the call pending', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -98,7 +119,7 @@ describe('fetchApiOrRedirect', () => {
       }),
     )
 
-    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow()
+    await expectPending(fetchApiOrRedirect('/api/v1/advisories/1'))
 
     expect(currentHref()).toBe(
       'https://cms.example/oauth2/sign_in?rd=https%3A%2F%2Fcms.example%2Fsome%2Fpage',
@@ -154,7 +175,10 @@ describe('fetchApiOrRedirect', () => {
   it('rejects without redirecting when the fetch itself fails (network error)', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => {
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('.well-known')) {
+          return configResponse('/oauth2/sign_in')
+        }
         throw new Error('network down')
       }),
     )
@@ -163,9 +187,6 @@ describe('fetchApiOrRedirect', () => {
       'network down',
     )
     expect(currentHref()).toBe('https://cms.example/some/page')
-    expect(
-      sessionStorage.getItem('csaf-cms-frontend.auth-redirect-in-progress'),
-    ).toBeNull()
   })
 
   it('redirects to login when a 2xx response body is not valid JSON or plain text', async () => {
@@ -182,9 +203,7 @@ describe('fetchApiOrRedirect', () => {
       }),
     )
 
-    await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow(
-      'redirecting to login',
-    )
+    await expectPending(fetchApiOrRedirect('/api/v1/advisories/1'))
     expect(currentHref()).toBe(
       'https://cms.example/oauth2/sign_in?rd=https%3A%2F%2Fcms.example%2Fsome%2Fpage',
     )
@@ -208,21 +227,24 @@ describe('fetchApiOrRedirect', () => {
     })
   })
 
-  it('does not leave the loop guard set when the app-config cannot be loaded', async () => {
+  it('rejects when app config cannot be loaded so a later request can retry', async () => {
+    let configCalls = 0
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) =>
-        String(input).includes('.well-known')
-          ? new Response(null, { status: 500 })
-          : new Response(null, { status: 401 }),
-      ),
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('.well-known')) {
+          configCalls += 1
+          return configCalls === 1
+            ? new Response(null, { status: 500 })
+            : configResponse('/login')
+        }
+        return new Response(null, { status: 401 })
+      }),
     )
 
     await expect(fetchApiOrRedirect('/api/v1/advisories/1')).rejects.toThrow()
-
-    expect(
-      sessionStorage.getItem('csaf-cms-frontend.auth-redirect-in-progress'),
-    ).toBeNull()
+    await expectPending(fetchApiOrRedirect('/api/v1/advisories/2'))
+    expect(configCalls).toBe(2)
   })
 
   describe('CSRF', () => {
@@ -333,49 +355,206 @@ describe('fetchApiOrRedirect', () => {
     })
   })
 
-  it('only navigates once when multiple calls hit a redirect condition (loop guard)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        if (String(input).includes('.well-known')) {
-          return configResponse('/login')
-        }
-        return new Response(null, { status: 401 })
-      }),
+  it('coordinates concurrent redirect conditions into one config lookup and navigation', async () => {
+    const location = (window as unknown as { location: { href: string } })
+      .location
+    let assignedHref = location.href
+    let navigationAssignments = 0
+    Object.defineProperty(location, 'href', {
+      configurable: true,
+      get: () => assignedHref,
+      set: (href: string) => {
+        navigationAssignments += 1
+        assignedHref = href
+      },
+    })
+
+    const config = deferred<Response>()
+    let configRequested!: () => void
+    const configStarted = new Promise<void>((resolve) => {
+      configRequested = resolve
+    })
+    let apiCalls = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('.well-known')) {
+        configRequested()
+        return config.promise
+      }
+      apiCalls += 1
+      return new Response(null, { status: 401 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = fetchApiOrRedirect('/api/v1/advisories/1')
+    const second = fetchApiOrRedirect('/api/v1/advisories/2')
+    await configStarted
+    config.resolve(configResponse('/login'))
+
+    await Promise.all([expectPending(first), expectPending(second)])
+    expect(apiCalls).toBe(2)
+    expect(
+      fetchMock.mock.calls.filter(([input]) =>
+        String(input).includes('.well-known'),
+      ),
+    ).toHaveLength(1)
+    expect(navigationAssignments).toBe(1)
+    expect(
+      (window as unknown as { location: { href: string } }).location.href,
+    ).toBe(
+      'https://cms.example/login?rd=https%3A%2F%2Fcms.example%2Fsome%2Fpage',
     )
-
-    await fetchApiOrRedirect('/api/v1/advisories/1').catch(() => {})
-    const hrefAfterFirst = (window as unknown as { location: { href: string } })
-      .location.href
-
-    await fetchApiOrRedirect('/api/v1/advisories/2').catch(() => {})
-    const hrefAfterSecond = (
-      window as unknown as { location: { href: string } }
-    ).location.href
-
-    expect(hrefAfterFirst).toBe(hrefAfterSecond)
   })
 
-  it('clears the redirect guard after a subsequent successful call', async () => {
-    let call = 0
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        if (String(input).includes('.well-known')) {
-          return configResponse('/login')
-        }
-        call += 1
-        return call === 1
-          ? new Response(null, { status: 401 })
-          : new Response(JSON.stringify({ ok: true }), { status: 200 })
-      }),
+  it('blocks API and CSRF warm-up requests while redirecting', async () => {
+    const config = deferred<Response>()
+    let configRequested!: () => void
+    const configStarted = new Promise<void>((resolve) => {
+      configRequested = resolve
+    })
+    vi.stubGlobal('document', { cookie: '' })
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('.well-known')) {
+        configRequested()
+        return config.promise
+      }
+      return new Response(null, { status: 401 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const redirecting = fetchApiOrRedirect('/api/v1/advisories/1')
+    await configStarted
+    const callsBeforeJoin = fetchMock.mock.calls.length
+    const joining = fetchApiOrRedirect('/api/v1/advisories', { method: 'POST' })
+    await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(callsBeforeJoin)
+
+    config.resolve(configResponse('/login'))
+    await Promise.all([expectPending(redirecting), expectPending(joining)])
+
+    const callsAfterNavigation = fetchMock.mock.calls.length
+    const afterNavigation = fetchApiOrRedirect('/api/v1/advisories', {
+      method: 'POST',
+    })
+    await expectPending(afterNavigation)
+    expect(fetchMock).toHaveBeenCalledTimes(callsAfterNavigation)
+  })
+
+  it('blocks a mutation when redirect starts during its CSRF warm-up', async () => {
+    const warmup = deferred<Response>()
+    let warmupRequested!: () => void
+    const warmupStarted = new Promise<void>((resolve) => {
+      warmupRequested = resolve
+    })
+    const config = deferred<Response>()
+    let configRequested!: () => void
+    const configStarted = new Promise<void>((resolve) => {
+      configRequested = resolve
+    })
+    vi.stubGlobal('document', { cookie: '' })
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === '/api/v1/about') {
+        warmupRequested()
+        return warmup.promise
+      }
+      if (url.includes('.well-known')) {
+        configRequested()
+        return config.promise
+      }
+      if (url === '/api/v1/advisories/redirect') {
+        return new Response(null, { status: 401 })
+      }
+      return new Response(null, { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const mutation = fetchApiOrRedirect('/api/v1/advisories/1', {
+      method: 'POST',
+    })
+    await warmupStarted
+
+    const redirecting = fetchApiOrRedirect('/api/v1/advisories/redirect')
+    await configStarted
+    config.resolve(configResponse('/login'))
+    await expectPending(redirecting)
+
+    warmup.resolve(new Response(null, { status: 200 }))
+    await expectPending(mutation)
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/v1/advisories/1',
+      expect.anything(),
     )
+  })
 
-    await fetchApiOrRedirect('/api/v1/advisories/1').catch(() => {})
-    await fetchApiOrRedirect('/api/v1/advisories/2')
+  it('does not clear a redirect transition when an already-sent request succeeds', async () => {
+    const alreadySentResponse = deferred<Response>()
+    const config = deferred<Response>()
+    let configRequested!: () => void
+    const configStarted = new Promise<void>((resolve) => {
+      configRequested = resolve
+    })
+    let apiCalls = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('.well-known')) {
+        configRequested()
+        return config.promise
+      }
+      apiCalls += 1
+      return String(input).endsWith('/slow')
+        ? alreadySentResponse.promise
+        : new Response(null, { status: 401 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
 
-    expect(
-      sessionStorage.getItem('csaf-cms-frontend.auth-redirect-in-progress'),
-    ).toBeNull()
+    const redirecting = fetchApiOrRedirect('/api/v1/advisories/1')
+    const alreadySent = fetchApiOrRedirect('/api/v1/slow')
+    await configStarted
+    config.resolve(configResponse('/login'))
+    await expectPending(redirecting)
+    alreadySentResponse.resolve(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    )
+    await expect(alreadySent).resolves.toEqual({
+      ok: true,
+      data: { ok: true },
+    })
+
+    const callsAfterSuccess = fetchMock.mock.calls.length
+    await expectPending(fetchApiOrRedirect('/api/v1/advisories/3'))
+    expect(fetchMock).toHaveBeenCalledTimes(callsAfterSuccess)
+    expect(apiCalls).toBe(2)
+  })
+
+  it('rejects all transition callers on config failure and resets for retry', async () => {
+    const config = deferred<Response>()
+    let configRequested!: () => void
+    const configStarted = new Promise<void>((resolve) => {
+      configRequested = resolve
+    })
+    let configCalls = 0
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('.well-known')) {
+        configCalls += 1
+        if (configCalls === 1) {
+          configRequested()
+          return config.promise
+        }
+        return configResponse('/login')
+      }
+      return new Response(null, { status: 401 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = fetchApiOrRedirect('/api/v1/advisories/1')
+    const second = fetchApiOrRedirect('/api/v1/advisories/2')
+    await configStarted
+    config.resolve(new Response(null, { status: 500 }))
+    await expect(Promise.allSettled([first, second])).resolves.toEqual([
+      expect.objectContaining({ status: 'rejected' }),
+      expect.objectContaining({ status: 'rejected' }),
+    ])
+
+    await expectPending(fetchApiOrRedirect('/api/v1/advisories/3'))
+    expect(configCalls).toBe(2)
   })
 })
