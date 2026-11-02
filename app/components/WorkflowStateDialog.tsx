@@ -9,12 +9,27 @@ import { Modal } from '~/components/Modal'
 import { useNotification } from '~/notifications/NotificationContext'
 
 const TRACKING_STATUSES = ['Interim', 'Final']
+const PROPOSED_TIME_STATES = ['RfPublication', 'Published']
 
 type WorkflowStateDialogProps = {
-  advisory: Pick<AdvisoryListItem, 'advisoryId' | 'allowedStateChanges'>
+  advisory: Pick<
+    AdvisoryListItem,
+    'advisoryId' | 'allowedStateChanges' | 'currentReleaseDate'
+  >
   onClose: () => void
   /** Called with the new state after the backend accepted the change. */
   onChanged: (state: string) => void
+}
+
+/** Formats a date as the local `YYYY-MM-DDTHH:mm` value a datetime-local input expects; empty when missing or invalid. */
+function toDateTimeLocal(date: string | undefined): string {
+  const parsed = new Date(date ?? '')
+  if (Number.isNaN(parsed.getTime())) return ''
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return (
+    `${String(parsed.getFullYear()).padStart(4, '0')}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}` +
+    `T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+  )
 }
 
 function failureReason(result: ApiResult<string> | undefined): string {
@@ -36,10 +51,14 @@ export const WorkflowStateDialog: React.FC<WorkflowStateDialogProps> = ({
   const { notify } = useNotification()
   const [state, setState] = useState('')
   const [trackingStatus, setTrackingStatus] = useState('')
+  const [proposedTime, setProposedTime] = useState(() =>
+    toDateTimeLocal(advisory.currentReleaseDate),
+  )
   const [submitting, setSubmitting] = useState(false)
 
   // The backend only accepts a publication together with a tracking status.
   const needsTrackingStatus = state === 'Published'
+  const offersProposedTime = PROPOSED_TIME_STATES.includes(state)
 
   const submit = async (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -47,7 +66,14 @@ export const WorkflowStateDialog: React.FC<WorkflowStateDialogProps> = ({
     const result = await changeWorkflowStateWithFreshRevision(
       advisory.advisoryId,
       state,
-      needsTrackingStatus ? { documentTrackingStatus: trackingStatus } : {},
+      {
+        ...(needsTrackingStatus
+          ? { documentTrackingStatus: trackingStatus }
+          : {}),
+        ...(offersProposedTime && proposedTime
+          ? { proposedTime: new Date(proposedTime).toISOString() }
+          : {}),
+      },
     ).catch(() => undefined)
     if (result?.ok) {
       notify({ reason: 'workflowDialog.changed', variant: 'success' })
@@ -99,6 +125,17 @@ export const WorkflowStateDialog: React.FC<WorkflowStateDialogProps> = ({
                 </option>
               ))}
             </select>
+          </label>
+        )}
+        {offersProposedTime && (
+          <label className="flex flex-col gap-1 text-sm font-bold">
+            {t('workflowDialog.proposedTime')}
+            <input
+              type="datetime-local"
+              value={proposedTime}
+              onChange={(event) => setProposedTime(event.target.value)}
+              className="rounded border px-2 py-1 font-normal"
+            />
           </label>
         )}
         <div className="flex justify-end gap-2">

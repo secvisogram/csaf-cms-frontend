@@ -5,9 +5,9 @@ import '~/i18n/i18n'
 import { NotificationProvider } from '~/notifications/NotificationContext'
 import { WorkflowStateDialog } from './WorkflowStateDialog'
 
-const advisory = {
+const advisory: Parameters<typeof WorkflowStateDialog>[0]['advisory'] = {
   advisoryId: 'advisory-1',
-  allowedStateChanges: ['Review', 'Published'],
+  allowedStateChanges: ['Review', 'RfPublication', 'AutoPublish', 'Published'],
 }
 
 function mockBackend(patchResponse: Response) {
@@ -26,13 +26,16 @@ const okResponse = () =>
     headers: { 'Content-Type': 'text/plain' },
   })
 
-async function renderDialog() {
+async function renderDialog(currentReleaseDate?: string) {
   const onClose = vi.fn()
   const onChanged = vi.fn()
   await render(
     <NotificationProvider>
       <WorkflowStateDialog
-        advisory={advisory}
+        advisory={{
+          ...advisory,
+          ...(currentReleaseDate ? { currentReleaseDate } : {}),
+        }}
         onClose={onClose}
         onChanged={onChanged}
       />
@@ -64,8 +67,128 @@ describe('WorkflowStateDialog', () => {
     expect([...options].map((option) => option.value)).toEqual([
       '',
       'Review',
+      'RfPublication',
+      'AutoPublish',
       'Published',
     ])
+  })
+
+  it.each([
+    ['RfPublication', true],
+    ['Published', true],
+    ['AutoPublish', false],
+    ['Review', false],
+  ])('offers the proposed time for %s: %s', async (target, offered) => {
+    await renderDialog()
+
+    await page
+      .getByRole('combobox', { name: 'New workflow state' })
+      .selectOptions(target)
+
+    const proposedTime = page.getByLabelText('Proposed time')
+    if (offered) {
+      await expect.element(proposedTime).toBeVisible()
+    } else {
+      await expect.element(proposedTime).not.toBeInTheDocument()
+    }
+  })
+
+  it('sends the proposed time as an ISO UTC string', async () => {
+    const fetchMock = mockBackend(okResponse())
+    const { onChanged } = await renderDialog()
+    await page
+      .getByRole('combobox', { name: 'New workflow state' })
+      .selectOptions('RfPublication')
+    await page.getByLabelText('Proposed time').fill('2030-05-06T07:08')
+
+    await submit().click()
+
+    await expect.poll(() => onChanged).toHaveBeenCalledWith('RfPublication')
+    const expected = encodeURIComponent(
+      new Date('2030-05-06T07:08').toISOString(),
+    )
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `/api/v1/advisories/advisory-1/workflowstate/RfPublication?revision=rev-2&proposedTime=${expected}`,
+    )
+  })
+
+  it('prefills the proposed time with the current release date', async () => {
+    const fetchMock = mockBackend(okResponse())
+    const releaseDate = new Date(2030, 4, 6, 7, 8)
+    const { onChanged } = await renderDialog(releaseDate.toISOString())
+    await page
+      .getByRole('combobox', { name: 'New workflow state' })
+      .selectOptions('Published')
+    await page
+      .getByRole('combobox', { name: 'Document tracking status' })
+      .selectOptions('Final')
+
+    await expect
+      .element(page.getByLabelText('Proposed time'))
+      .toHaveValue('2030-05-06T07:08')
+
+    await submit().click()
+
+    await expect.poll(() => onChanged).toHaveBeenCalledWith('Published')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `/api/v1/advisories/advisory-1/workflowstate/Published?revision=rev-2&documentTrackingStatus=Final&proposedTime=${encodeURIComponent(releaseDate.toISOString())}`,
+    )
+  })
+
+  it('lets the prefilled proposed time be cleared', async () => {
+    const fetchMock = mockBackend(okResponse())
+    const { onChanged } = await renderDialog(new Date(2030, 4, 6).toISOString())
+    await page
+      .getByRole('combobox', { name: 'New workflow state' })
+      .selectOptions('RfPublication')
+
+    await page.getByLabelText('Proposed time').fill('')
+    await submit().click()
+
+    await expect.poll(() => onChanged).toHaveBeenCalledWith('RfPublication')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      '/api/v1/advisories/advisory-1/workflowstate/RfPublication?revision=rev-2',
+    )
+  })
+
+  it('leaves the proposed time empty when the release date is missing or invalid', async () => {
+    await renderDialog('not a date')
+    await page
+      .getByRole('combobox', { name: 'New workflow state' })
+      .selectOptions('RfPublication')
+
+    await expect.element(page.getByLabelText('Proposed time')).toHaveValue('')
+  })
+
+  it('omits the proposed time when left empty', async () => {
+    const fetchMock = mockBackend(okResponse())
+    const { onChanged } = await renderDialog()
+    await page
+      .getByRole('combobox', { name: 'New workflow state' })
+      .selectOptions('RfPublication')
+
+    await submit().click()
+
+    await expect.poll(() => onChanged).toHaveBeenCalledWith('RfPublication')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      '/api/v1/advisories/advisory-1/workflowstate/RfPublication?revision=rev-2',
+    )
+  })
+
+  it('does not send a proposed time entered before switching to AutoPublish', async () => {
+    const fetchMock = mockBackend(okResponse())
+    const { onChanged } = await renderDialog()
+    const state = page.getByRole('combobox', { name: 'New workflow state' })
+    await state.selectOptions('RfPublication')
+    await page.getByLabelText('Proposed time').fill('2030-05-06T07:08')
+    await state.selectOptions('AutoPublish')
+
+    await submit().click()
+
+    await expect.poll(() => onChanged).toHaveBeenCalledWith('AutoPublish')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      '/api/v1/advisories/advisory-1/workflowstate/AutoPublish?revision=rev-2',
+    )
   })
 
   it('asks for the tracking status only when publishing', async () => {
