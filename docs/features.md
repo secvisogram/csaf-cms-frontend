@@ -28,3 +28,4 @@ This is the page that renders `<secvisogram-editor>` (see [the embedding contrac
 3. Track validity from `csaf-validate` events to enable/disable its own Save button.
 4. Own the Save UI itself: a save action plus a summary/legacy-version input, calling `createAdvisory`/`updateAdvisory` with the tracked `doc`, the `revision` it fetched earlier, and the summary text.
 5. Show its own success/error toast for the save result (the embedded editor no longer has any concept of "saved to backend").
+6. Handle a stale `revision` (the save is rejected with `409 Conflict`) distinctly from other save failures: show a persistent, non-dismissible banner above the editor instead of an error toast, disable Save… while it is shown, and offer a confirmed **Reload latest version** that re-fetches the advisory detail and replaces the tracked `doc` and `revision`. Cancelling the confirmation keeps the local edits and the banner.

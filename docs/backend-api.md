@@ -19,6 +19,8 @@ csaf-cms-frontend's own API client must reproduce, since it takes over every bac
 | `/advisories/{advisoryId}/csaf`                  | GET    | Export advisory document                       | query: `format`                                               | Existing export path; export itself also has a fully local/offline path inside the editor (see [the embedding contract](embedding-contract.md)) |
 | `/about`                                         | GET    | Backend version/info                           | —                                                             | Display-only                                                                                                                                    |
 
+**Stale revision:** a write whose `revision` is outdated must be rejected with `409 Conflict`; the frontend treats exactly that status on `PATCH /advisories/{advisoryId}` as "stale revision" (see [the edit page responsibilities](features.md#edit-advisory-page-responsibilities-specifically)). Until [csaf-cms-backend#345](https://github.com/secvisogram/csaf-cms-backend/issues/345) is fixed, the backend reports such a conflict as a bodiless `404`, so the banner does not appear against an unfixed backend.
+
 **Response bodies:** create (`POST /advisories`) responds `{ id, revision }` and update (`PATCH /advisories/{advisoryId}`) responds `{ revision }`.
 
 **CSRF:** the backend enables CSRF by default (`csaf.csrf.enabled`). Every non-GET/HEAD request must send the value of the `XSRF-TOKEN` cookie as an `X-XSRF-TOKEN` header; if the cookie is not set yet, a prior `GET /about` makes the backend set it.
