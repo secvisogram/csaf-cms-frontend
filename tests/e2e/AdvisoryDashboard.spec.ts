@@ -115,7 +115,12 @@ test('sorts rows by clicking a column header', async ({ page }) => {
 test.describe('workflow-state change', () => {
   const changeable = {
     ...advisories[0],
-    allowedStateChanges: ['Review', 'Published'],
+    allowedStateChanges: [
+      'Review',
+      'RfPublication',
+      'AutoPublish',
+      'Published',
+    ],
   }
 
   /** The mocked list and detail reflect a state change once the PATCH succeeded, like the real backend. */
@@ -172,7 +177,13 @@ test.describe('workflow-state change', () => {
       .getByLabel('New workflow state')
       .locator('option')
       .allTextContents()
-    expect(options).toEqual(['-- Choose --', 'Review', 'Published'])
+    expect(options).toEqual([
+      '-- Choose --',
+      'Review',
+      'RfPublication',
+      'AutoPublish',
+      'Published',
+    ])
 
     await dialog.getByLabel('New workflow state').selectOption('Review')
     await dialog.getByRole('button', { name: 'Change', exact: true }).click()
@@ -189,7 +200,9 @@ test.describe('workflow-state change', () => {
     ])
   })
 
-  test('sends the tracking status when publishing', async ({ page }) => {
+  test('sends the tracking status and the prefilled release date when publishing', async ({
+    page,
+  }) => {
     const calls = await mockWorkflowBackend(page, 200)
     await page.goto('/')
 
@@ -201,8 +214,60 @@ test.describe('workflow-state change', () => {
 
     await expect(dialog).not.toBeVisible()
     expect(calls[1]).toBe(
-      'PATCH /api/v1/advisories/advisory-1/workflowstate/Published?revision=rev-2&documentTrackingStatus=Final',
+      'PATCH /api/v1/advisories/advisory-1/workflowstate/Published?revision=rev-2&documentTrackingStatus=Final&proposedTime=2024-01-15T00%3A00%3A00.000Z',
     )
+  })
+
+  test('sends the proposed time as an ISO UTC string for RfPublication', async ({
+    page,
+  }) => {
+    const calls = await mockWorkflowBackend(page, 200)
+    await page.goto('/')
+
+    const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+    await row.getByRole('button', { name: 'Change state' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
+    await dialog.getByLabel('New workflow state').selectOption('RfPublication')
+    await dialog.getByLabel('Proposed time').fill('2030-05-06T07:08')
+    await dialog.getByRole('button', { name: 'Change', exact: true }).click()
+
+    await expect(row.getByText('RfPublication')).toBeVisible()
+    const proposedTime = encodeURIComponent(
+      await page.evaluate(() => new Date('2030-05-06T07:08').toISOString()),
+    )
+    expect(calls[1]).toBe(
+      `PATCH /api/v1/advisories/advisory-1/workflowstate/RfPublication?revision=rev-2&proposedTime=${proposedTime}`,
+    )
+  })
+
+  test('prefills the proposed time with the current release date', async ({
+    page,
+  }) => {
+    await mockWorkflowBackend(page, 200)
+    await page.goto('/')
+
+    await page.getByRole('button', { name: 'Change state' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
+    await dialog.getByLabel('New workflow state').selectOption('RfPublication')
+
+    const expected = await page.evaluate(() => {
+      const date = new Date('2024-01-15')
+      const pad = (value: number) => String(value).padStart(2, '0')
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+    })
+    await expect(dialog.getByLabel('Proposed time')).toHaveValue(expected)
+  })
+
+  test('offers no proposed time for AutoPublish', async ({ page }) => {
+    await mockWorkflowBackend(page, 200)
+    await page.goto('/')
+
+    await page.getByRole('button', { name: 'Change state' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
+    await dialog.getByLabel('New workflow state').selectOption('AutoPublish')
+
+    await expect(dialog.getByLabel('Document tracking status')).toHaveCount(0)
+    await expect(dialog.getByLabel('Proposed time')).toHaveCount(0)
   })
 
   test('shows an error toast and keeps the state when the change fails', async ({
