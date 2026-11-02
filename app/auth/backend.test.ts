@@ -3,6 +3,7 @@ import {
   changeWorkflowState,
   createAdvisory,
   createNewVersion,
+  createNewVersionWithFreshRevision,
   deleteAdvisory,
   getAbout,
   getAdvisory,
@@ -147,6 +148,46 @@ describe('typed backend client', () => {
         method: 'PATCH',
       },
     )
+  })
+
+  it('createNewVersionWithFreshRevision fetches the revision before PATCHing with it', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ advisoryId: '1', revision: 'rev-9' }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('10-xyz', {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await createNewVersionWithFreshRevision('1')
+
+    expect(result).toEqual({ ok: true, data: '10-xyz' })
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/advisories/1',
+      undefined,
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/advisories/1/createNewVersion?revision=rev-9',
+      { method: 'PATCH' },
+    )
+  })
+
+  it('createNewVersionWithFreshRevision does not PATCH when the revision fetch fails', async () => {
+    const fetchMock = mockFetchResolving(404, { message: 'gone' })
+
+    const result = await createNewVersionWithFreshRevision('1')
+
+    expect(result.ok).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('listTemplates GETs /api/v1/advisories/templates', async () => {
