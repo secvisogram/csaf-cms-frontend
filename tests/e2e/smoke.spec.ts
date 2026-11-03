@@ -18,7 +18,9 @@ test('advisory dashboard loads with a mocked backend', async ({ page }) => {
     route.fulfill({ json: { groups: [] } }),
   )
   await page.route('**/api/v1/advisories', (route) =>
-    route.fulfill({ json: [{ advisoryId: 'intercepted-advisory' }] }),
+    route.fulfill({
+      json: [{ advisoryId: 'intercepted-advisory', allowedStateChanges: [] }],
+    }),
   )
 
   await page.goto('/')
