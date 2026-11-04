@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { href, Link, Outlet, useRouteLoaderData } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { canCreateDocuments } from '~/auth/userInfo'
+import { AboutDialog } from '~/components/AboutDialog'
 import { NewDocumentDialog } from '~/components/NewDocumentDialog'
 import type { clientLoader as rootLoader } from '~/root'
 
 export const App: React.FC<{}> = () => {
   const { t } = useTranslation()
   const [newDialogOpen, setNewDialogOpen] = useState(false)
+  const [aboutDialogOpen, setAboutDialogOpen] = useState(false)
   const rootData = useRouteLoaderData<typeof rootLoader>('root')
   const canCreate = rootData ? canCreateDocuments(rootData.userInfo) : false
 
@@ -35,6 +37,14 @@ export const App: React.FC<{}> = () => {
             )}
           </div>
           <div className="flex items-center pr-5">
+            <button
+              type="button"
+              data-testid="about_button"
+              className="text-gray-300 hover:bg-slate-700 hover:text-white text-sm font-bold p-2 h-auto"
+              onClick={() => setAboutDialogOpen(true)}
+            >
+              {t('nav.about')}
+            </button>
             {rootData && (
               <a
                 data-testid="logout_button"
@@ -55,6 +65,9 @@ export const App: React.FC<{}> = () => {
       </div>
       {newDialogOpen && (
         <NewDocumentDialog onClose={() => setNewDialogOpen(false)} />
+      )}
+      {aboutDialogOpen && (
+        <AboutDialog onClose={() => setAboutDialogOpen(false)} />
       )}
     </>
   )

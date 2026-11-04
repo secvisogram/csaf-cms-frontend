@@ -2,7 +2,20 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     new: 'New',
+    about: 'About',
     logout: 'Logout',
+  },
+  aboutModal: {
+    title: 'About CSAF CMS',
+    close: 'Close',
+    version: 'Version',
+    backendVersion: 'Backend Version',
+    loading: 'Loading backend version…',
+    loadFailed: 'The backend version could not be loaded.',
+    license: 'License',
+    licenseName: 'Apache-2.0',
+    usageInstructions: 'For usage instructions check the',
+    authorGuide: 'CSAF Author Guide',
   },
   dashboard: {
     heading: 'Advisory Dashboard',
