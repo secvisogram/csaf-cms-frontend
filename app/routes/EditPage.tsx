@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { useLoaderData } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { getAdvisory, updateAdvisory } from '~/auth/backend'
+import {
+  getAdvisory,
+  isStaleRevisionError,
+  updateAdvisory,
+} from '~/auth/backend'
 import { getAppConfig } from '~/auth/appConfig'
 import { EditorPageLayout } from '~/components/EditorPageLayout'
 import { SaveFooter, type SaveFields } from '~/components/SaveFooter'
+import { StaleRevisionBanner } from '~/components/StaleRevisionBanner'
 import { useNotification } from '~/notifications/NotificationContext'
 import { useEditorHost } from '~/useEditorHost'
 import type { Route } from './+types/EditPage'
@@ -28,32 +33,65 @@ export const clientLoader = async ({ params }: Route.ClientLoaderArgs) => {
 const EditPage: React.FC = () => {
   const data = useLoaderData<typeof clientLoader>()
   const { t } = useTranslation()
-  const { editorRef, doc, valid } = useEditorHost(data.csaf, data.validatorUrl)
+  const [loaded, setLoaded] = useState({
+    csaf: data.csaf,
+    revision: data.revision,
+  })
+  const [conflict, setConflict] = useState(false)
+  const { editorRef, doc, valid } = useEditorHost(
+    loaded.csaf,
+    data.validatorUrl,
+  )
   const heading = `${t('editPage.heading')} ${data.advisoryId}`
-  const [revision, setRevision] = useState(data.revision)
   const { notify } = useNotification()
 
   useEffect(() => {
-    setRevision(data.revision)
-  }, [data.revision])
+    setLoaded({ csaf: data.csaf, revision: data.revision })
+    setConflict(false)
+  }, [data.csaf, data.revision])
 
   const save = async ({ summary, legacyVersion }: SaveFields) => {
-    const result = await updateAdvisory(data.advisoryId, revision, {
+    const result = await updateAdvisory(data.advisoryId, loaded.revision, {
       csaf: doc,
       summary,
       ...(legacyVersion.trim() ? { legacyVersion } : {}),
-    }).catch(() => undefined)
+    }).catch((error) => {
+      console.error(error)
+      return undefined
+    })
     if (!result?.ok) {
-      notify({ reason: 'saveFooter.saveFailed', variant: 'error' })
+      if (result && isStaleRevisionError(result.error)) {
+        setConflict(true)
+      } else {
+        notify({ reason: 'saveFooter.saveFailed', variant: 'error' })
+      }
       return false
     }
-    setRevision(result.data.revision)
+    setLoaded((current) => ({ ...current, revision: result.data.revision }))
     notify({ reason: 'saveFooter.saved', variant: 'success' })
     return true
   }
 
+  // Fetched directly instead of revalidating the route: a failed loader would replace the page and lose the local edits.
+  const reload = async () => {
+    const detail = await getAdvisory(data.advisoryId).catch((error) => {
+      console.error(error)
+      return undefined
+    })
+    if (!detail?.ok) {
+      notify({ reason: 'staleRevision.reloadFailed', variant: 'error' })
+      return
+    }
+    setLoaded({ csaf: detail.data.csaf, revision: detail.data.revision })
+    setConflict(false)
+  }
+
   return (
-    <EditorPageLayout editorRef={editorRef} heading={heading}>
+    <EditorPageLayout
+      editorRef={editorRef}
+      heading={heading}
+      banner={conflict && <StaleRevisionBanner onReload={reload} />}
+    >
       {/* Test-only seam for the tracked doc/validity state; ticket 18 reads this for Save. */}
       <pre data-testid="edit_page_tracked_doc" hidden>
         {JSON.stringify(doc)}
@@ -61,7 +99,12 @@ const EditPage: React.FC = () => {
       <p data-testid="edit_page_tracked_valid" hidden>
         {String(valid)}
       </p>
-      <SaveFooter heading={heading} valid={valid} onSave={save} />
+      <SaveFooter
+        heading={heading}
+        valid={valid}
+        saveBlocked={conflict}
+        onSave={save}
+      />
     </EditorPageLayout>
   )
 }

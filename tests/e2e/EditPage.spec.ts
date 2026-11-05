@@ -11,6 +11,8 @@ async function mockBackend(
   overrides?: {
     validatorUrl?: string
     onPatch?: (patch: Patch, route: Route) => Promise<void> | void
+    /** Handles GETs after the initial page load; defaults to the initial detail. */
+    onReloadGet?: (route: Route) => Promise<void> | void
   },
 ) {
   await page.route(
@@ -34,6 +36,7 @@ async function mockBackend(
   await page.route('**/oauth2/userinfo', (route) =>
     route.fulfill({ json: { groups: ['editor'] } }),
   )
+  let gets = 0
   await page.route('**/api/v1/advisories/some-advisory-id**', (route) => {
     const request = route.request()
     if (request.method() === 'PATCH') {
@@ -43,6 +46,8 @@ async function mockBackend(
       }
       return overrides?.onPatch?.(patch, route)
     }
+    if (gets++ > 0 && overrides?.onReloadGet)
+      return overrides.onReloadGet(route)
     return route.fulfill({
       json: { advisoryId: 'some-advisory-id', revision: 'rev-1', csaf },
     })
@@ -244,6 +249,178 @@ test('shows an error toast and keeps the modal when the save request rejects', a
   await expect(
     dialog.getByRole('button', { name: 'Save', exact: true }),
   ).toBeEnabled()
+})
+
+async function saveWith(page: Page, summary: string) {
+  await page.getByRole('button', { name: 'Save…' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Summary').fill(summary)
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+}
+
+const staleResponse = (_patch: Patch, route: Route) =>
+  route.fulfill({ status: 409, json: { message: 'stale revision' } })
+
+const banner = (page: Page) => page.getByTestId('stale_revision_banner')
+
+test('shows a persistent banner instead of a toast and blocks saving when the revision is stale', async ({
+  page,
+}) => {
+  await mockBackend(page, { onPatch: staleResponse })
+  await page.goto('/some-advisory-id/edit')
+
+  await saveWith(page, 'Will conflict')
+
+  await expect(banner(page)).toContainText(
+    "This document was changed by someone else. You can't save until you reload.",
+  )
+  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Save…' })).toBeDisabled()
+  await expect(
+    banner(page).getByRole('button', { name: 'Reload latest version' }),
+  ).toBeVisible()
+  await expect(banner(page).getByRole('button')).toHaveCount(1)
+})
+
+for (const status of [404, 500]) {
+  test(`keeps the error toast and shows no banner for a ${status} response`, async ({
+    page,
+  }) => {
+    await mockBackend(page, {
+      onPatch: (_patch, route) =>
+        route.fulfill({ status, json: { message: 'nope' } }),
+    })
+    await page.goto('/some-advisory-id/edit')
+
+    await saveWith(page, 'Will fail')
+
+    await expect(page.getByRole('status')).toHaveText(
+      /Could not save the advisory/,
+    )
+    await expect(banner(page)).toHaveCount(0)
+  })
+}
+
+test('keeps the local edits and the banner when the reload confirmation is cancelled', async ({
+  page,
+}) => {
+  await mockBackend(page, { onPatch: staleResponse })
+  await page.goto('/some-advisory-id/edit')
+  const edited = { document: { csaf_version: '2.1', title: 'Edited title' } }
+  await page.getByTestId('secvisogram-mock-doc').fill(JSON.stringify(edited))
+  await saveWith(page, 'Will conflict')
+
+  await banner(page)
+    .getByRole('button', { name: 'Reload latest version' })
+    .click()
+  const confirm = page.getByRole('dialog')
+  await expect(confirm).toContainText('discards all local edits')
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await confirm.getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(confirm).toBeHidden()
+  await expect(banner(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save…' })).toBeDisabled()
+  await expect(page.getByTestId('edit_page_tracked_doc')).toHaveText(
+    JSON.stringify(edited),
+  )
+})
+
+test('keeps the local edits and the banner when the reload confirmation is dismissed with Escape', async ({
+  page,
+}) => {
+  await mockBackend(page, { onPatch: staleResponse })
+  await page.goto('/some-advisory-id/edit')
+  await saveWith(page, 'Will conflict')
+
+  await banner(page)
+    .getByRole('button', { name: 'Reload latest version' })
+    .click()
+  await page.keyboard.press('Escape')
+
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(banner(page)).toBeVisible()
+})
+
+test('reloads the latest version on confirm, replaces doc and revision, and re-enables saving', async ({
+  page,
+}) => {
+  const patches: Patch[] = []
+  const latest = { document: { csaf_version: '2.1', title: 'Their title' } }
+  await mockBackend(page, {
+    onPatch: (patch, route) => {
+      patches.push(patch)
+      return patches.length === 1
+        ? staleResponse(patch, route)
+        : route.fulfill({ json: { revision: 'rev-4' } })
+    },
+    onReloadGet: (route) =>
+      route.fulfill({
+        json: {
+          advisoryId: 'some-advisory-id',
+          revision: 'rev-3',
+          csaf: latest,
+        },
+      }),
+  })
+  await page.goto('/some-advisory-id/edit')
+  const edited = { document: { csaf_version: '2.1', title: 'Edited title' } }
+  await page.getByTestId('secvisogram-mock-doc').fill(JSON.stringify(edited))
+  await saveWith(page, 'Will conflict')
+
+  await banner(page)
+    .getByRole('button', { name: 'Reload latest version' })
+    .click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Reload latest version' })
+    .click()
+
+  await expect(banner(page)).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.getByTestId('secvisogram-mock-doc')).toHaveValue(
+    JSON.stringify(latest, null, 2),
+  )
+  await expect(page.getByTestId('edit_page_tracked_doc')).toHaveText(
+    JSON.stringify(latest),
+  )
+  await expect(page.getByRole('button', { name: 'Save…' })).toBeEnabled()
+
+  await saveWith(page, 'After reload')
+  await expect(page.getByRole('status')).toHaveText(/Advisory saved/)
+  expect(patches.map((patch) => patch.revision)).toEqual(['rev-1', 'rev-3'])
+})
+
+test('keeps the banner and the local edits and shows an error toast when the reload fails', async ({
+  page,
+}) => {
+  await mockBackend(page, {
+    onPatch: staleResponse,
+    onReloadGet: (route) =>
+      route.fulfill({ status: 500, json: { message: 'boom' } }),
+  })
+  await page.goto('/some-advisory-id/edit')
+  const edited = { document: { csaf_version: '2.1', title: 'Edited title' } }
+  await page.getByTestId('secvisogram-mock-doc').fill(JSON.stringify(edited))
+  await saveWith(page, 'Will conflict')
+
+  await banner(page)
+    .getByRole('button', { name: 'Reload latest version' })
+    .click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Reload latest version' })
+    .click()
+
+  await expect(page.getByRole('status')).toHaveText(
+    /Could not reload the advisory/,
+  )
+  await expect(banner(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save…' })).toBeDisabled()
+  await expect(page.getByTestId('edit_page_tracked_doc')).toHaveText(
+    JSON.stringify(edited),
+  )
 })
 
 for (const width of [1280, 1920]) {

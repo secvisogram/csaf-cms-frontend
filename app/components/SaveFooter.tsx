@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Modal } from '~/components/Modal'
 
@@ -8,6 +8,8 @@ type SaveFooterProps = {
   /** Page heading shown at the left of the bar. */
   heading: string
   valid: boolean
+  /** Disables Save… and closes an open modal, keeping the entered values for when saving is possible again. */
+  saveBlocked?: boolean
   /**
    * Resolves true when the save succeeded, which closes the modal; false keeps it open with the entered values.
    * The owner reports failures to the user and resolves false, as the footer cannot; a rejection is treated as a failed save and logged.
@@ -18,6 +20,7 @@ type SaveFooterProps = {
 export const SaveFooter: React.FC<SaveFooterProps> = ({
   heading,
   valid,
+  saveBlocked = false,
   onSave,
 }) => {
   const { t } = useTranslation()
@@ -26,6 +29,10 @@ export const SaveFooter: React.FC<SaveFooterProps> = ({
   const [submitting, setSubmitting] = useState(false)
   const [summary, setSummary] = useState('')
   const [legacyVersion, setLegacyVersion] = useState('')
+
+  useEffect(() => {
+    if (saveBlocked) setOpen(false)
+  }, [saveBlocked])
 
   const submit = async (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -60,7 +67,7 @@ export const SaveFooter: React.FC<SaveFooterProps> = ({
         </div>
         <button
           type="button"
-          disabled={!valid}
+          disabled={!valid || saveBlocked}
           onClick={() => setOpen(true)}
           className="ml-4 shrink-0 rounded bg-slate-700 px-3 py-1 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         >

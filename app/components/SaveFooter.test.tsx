@@ -139,4 +139,34 @@ describe('SaveFooter', () => {
     await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
     expect(onSave).toHaveBeenCalledOnce()
   })
+
+  it('disables Save… while saving is blocked', async () => {
+    const screen = await render(
+      <SaveFooter heading="Test page" valid saveBlocked onSave={vi.fn()} />,
+    )
+
+    await expect
+      .element(screen.getByRole('button', { name: 'Save…' }))
+      .toBeDisabled()
+  })
+
+  it('closes an open modal when saving becomes blocked and keeps the entered values', async () => {
+    const onSave = vi.fn()
+    const screen = await render(
+      <SaveFooter heading="Test page" valid onSave={onSave} />,
+    )
+    await screen.getByRole('button', { name: 'Save…' }).click()
+    await page.getByLabelText('Summary').fill('Kept')
+
+    await screen.rerender(
+      <SaveFooter heading="Test page" valid saveBlocked onSave={onSave} />,
+    )
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
+
+    await screen.rerender(
+      <SaveFooter heading="Test page" valid onSave={onSave} />,
+    )
+    await screen.getByRole('button', { name: 'Save…' }).click()
+    await expect.element(page.getByLabelText('Summary')).toHaveValue('Kept')
+  })
 })

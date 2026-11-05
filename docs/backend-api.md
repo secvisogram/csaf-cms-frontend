@@ -19,6 +19,8 @@ csaf-cms-frontend's own API client must reproduce, since it takes over every bac
 | `/advisories/{advisoryId}/csaf`                  | GET    | Export advisory document                       | query: `format`                                               | Existing export path; export itself also has a fully local/offline path inside the editor (see [the embedding contract](embedding-contract.md)) |
 | `/about`                                         | GET    | Backend version/info                           | —                                                             | Display-only                                                                                                                                    |
 
+**Stale revision:** a write whose `revision` is outdated must be rejected with `409 Conflict`; the frontend treats exactly that status on `PATCH /advisories/{advisoryId}` as "stale revision" (see [the edit page responsibilities](features.md#edit-advisory-page-responsibilities-specifically)). Until [csaf-cms-backend#345](https://github.com/secvisogram/csaf-cms-backend/issues/345) is fixed, the backend reports such a conflict as a bodiless `404`, so the banner does not appear against an unfixed backend.
+
 **Response bodies:** create (`POST /advisories`) responds `{ id, revision }` and update (`PATCH /advisories/{advisoryId}`) responds `{ revision }`.
 
 **Workflow-state parameters:** the backend has one handler per target state, so `documentTrackingStatus` is only optional for some of them. It is **required** (`Interim` or `Final`) when the target state is `Published`; omitting it yields a 400. `proposedTime` is optional for `RfPublication`, `AutoPublish` and `Published`.

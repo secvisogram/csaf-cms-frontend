@@ -1,4 +1,4 @@
-import { fetchApiOrRedirect, type ApiResult } from './session'
+import { fetchApiOrRedirect, type ApiError, type ApiResult } from './session'
 
 export type AdvisoryListItem = {
   advisoryId: string
@@ -49,6 +49,11 @@ async function asRevision(
 ): Promise<ApiResult<string>> {
   const resolved = await result
   return resolved.ok ? { ok: true, data: String(resolved.data) } : resolved
+}
+
+/** The backend answers a write with an outdated `revision` with 409 Conflict. */
+export function isStaleRevisionError(error: ApiError): boolean {
+  return error.status === 409
 }
 
 const jsonHeaders = { 'Content-Type': 'application/json' }

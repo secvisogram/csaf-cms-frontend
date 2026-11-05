@@ -81,6 +81,16 @@ export default {
     saved: 'Advisory saved',
     saveFailed: 'Could not save the advisory',
   },
+  staleRevision: {
+    message:
+      "This document was changed by someone else. You can't save until you reload.",
+    reload: 'Reload latest version',
+    confirmTitle: 'Reload latest version?',
+    confirmBody:
+      'Reloading discards all local edits you made since the loaded version. This cannot be undone.',
+    cancel: 'Cancel',
+    reloadFailed: 'Could not reload the advisory',
+  },
   appConfigError: {
     heading: 'Configuration unavailable',
     body: 'The application configuration could not be loaded.',
