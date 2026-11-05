@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useLoaderData } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { getAdvisory, updateAdvisory } from '~/auth/backend'
@@ -7,6 +7,10 @@ import { EditorPageLayout } from '~/components/EditorPageLayout'
 import { SaveFooter, type SaveFields } from '~/components/SaveFooter'
 import { useNotification } from '~/notifications/NotificationContext'
 import { useEditorHost } from '~/useEditorHost'
+import {
+  isDocumentDirty,
+  useUnsavedChangesGuard,
+} from '~/useUnsavedChangesGuard'
 import type { Route } from './+types/EditPage'
 
 export const clientLoader = async ({ params }: Route.ClientLoaderArgs) => {
@@ -29,13 +33,17 @@ const EditPage: React.FC = () => {
   const data = useLoaderData<typeof clientLoader>()
   const { t } = useTranslation()
   const { editorRef, doc, valid } = useEditorHost(data.csaf, data.validatorUrl)
+  const [savedDoc, setSavedDoc] = useState(data.csaf)
+  const isDirty = useMemo(() => isDocumentDirty(doc, savedDoc), [doc, savedDoc])
+  useUnsavedChangesGuard(isDirty)
   const heading = `${t('editPage.heading')} ${data.advisoryId}`
   const [revision, setRevision] = useState(data.revision)
   const { notify } = useNotification()
 
   useEffect(() => {
     setRevision(data.revision)
-  }, [data.revision])
+    setSavedDoc(data.csaf)
+  }, [data.csaf, data.revision])
 
   const save = async ({ summary, legacyVersion }: SaveFields) => {
     const result = await updateAdvisory(data.advisoryId, revision, {
@@ -48,6 +56,7 @@ const EditPage: React.FC = () => {
       return false
     }
     setRevision(result.data.revision)
+    setSavedDoc(doc)
     notify({ reason: 'saveFooter.saved', variant: 'success' })
     return true
   }

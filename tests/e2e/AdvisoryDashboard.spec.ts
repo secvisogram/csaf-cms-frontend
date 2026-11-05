@@ -130,7 +130,7 @@ test.describe('workflow-state change', () => {
     await page
       .context()
       .addCookies([
-        { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+        { name: 'XSRF-TOKEN', value: 'token', domain: 'localhost', path: '/' },
       ])
     await page.route('**/api/v1/advisories', (route) =>
       route.fulfill({
@@ -337,7 +337,7 @@ async function mockPublishedAdvisory(
   await page
     .context()
     .addCookies([
-      { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+      { name: 'XSRF-TOKEN', value: 'token', domain: 'localhost', path: '/' },
     ])
   const listRequests: string[] = []
   await page.route('**/api/v1/advisories', (route) => {
