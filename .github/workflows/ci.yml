@@ -90,8 +90,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OCI_LABELS: ${{ steps.meta.outputs.labels }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            app_version="$RELEASE_TAG"
+          else
+            app_version="${SOURCE_SHA:0:7}"
+          fi
           npmrc=$(mktemp)
           trap 'rm -f "$npmrc"' EXIT
           printf '//npm.pkg.github.com/:_authToken=%s\n' "$GITHUB_TOKEN" > "$npmrc"
@@ -104,6 +112,7 @@ jobs:
 
           docker buildx build --load --platform linux/amd64 \
             --secret id=github_npmrc,src="$npmrc" \
+            --build-arg "VITE_APP_VERSION=$app_version" \
             "${docker_label_args[@]}" \
             --tag csaf-cms-edge:ci \
             --file edge/Dockerfile .

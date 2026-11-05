@@ -9,6 +9,7 @@ export default [
   layout('App.tsx', [
     index('routes/AdvisoryDashboard.tsx'),
     route('new', 'routes/NewPage.tsx'),
+    route('data/about', 'routes/AboutData.tsx'),
     route(':advisoryId/edit', 'routes/EditPage.tsx'),
   ]),
 ] satisfies RouteConfig

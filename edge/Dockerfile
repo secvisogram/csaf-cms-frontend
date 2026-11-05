@@ -20,6 +20,8 @@ COPY public ./public
 COPY secvisogram-mock ./secvisogram-mock
 COPY scripts ./scripts
 COPY react-router.config.ts tsconfig.json vite.config.ts ./
+ARG VITE_APP_VERSION
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 RUN npm run build:prod
 
 FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03 AS runtime
