@@ -41,6 +41,9 @@ export default {
   editPage: {
     heading: 'Edit Page for Advisory with id',
   },
+  unsavedChanges: {
+    confirm: 'You have unsaved changes. Leave this page?',
+  },
   newDialog: {
     title: 'New document',
     blank: 'Blank document',

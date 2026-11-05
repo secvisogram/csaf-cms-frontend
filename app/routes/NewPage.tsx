@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { href, redirect, useLoaderData, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { getAppConfig } from '~/auth/appConfig'
@@ -9,6 +9,10 @@ import { EditorPageLayout } from '~/components/EditorPageLayout'
 import { SaveFooter, type SaveFields } from '~/components/SaveFooter'
 import { useNotification } from '~/notifications/NotificationContext'
 import { useEditorHost } from '~/useEditorHost'
+import {
+  isDocumentDirty,
+  useUnsavedChangesGuard,
+} from '~/useUnsavedChangesGuard'
 import type { Route } from './+types/NewPage'
 
 export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
@@ -38,7 +42,14 @@ const NewPage: React.FC = () => {
   const navigate = useNavigate()
   const { notify } = useNotification()
   const { editorRef, doc, valid } = useEditorHost(data.seed, data.validatorUrl)
+  const [savedDoc, setSavedDoc] = useState(data.seed)
+  const isDirty = useMemo(() => isDocumentDirty(doc, savedDoc), [doc, savedDoc])
+  const { bypassNavigationTo } = useUnsavedChangesGuard(isDirty)
   const heading = t('newPage.heading')
+
+  useEffect(() => {
+    setSavedDoc(data.seed)
+  }, [data.seed])
 
   const save = async ({ summary, legacyVersion }: SaveFields) => {
     const result = await createAdvisory({
@@ -51,7 +62,12 @@ const NewPage: React.FC = () => {
       return false
     }
     notify({ reason: 'newPage.saved', variant: 'success' })
-    await navigate(href('/:advisoryId/edit', { advisoryId: result.data.id }), {
+    setSavedDoc(doc)
+    const editPath = href('/:advisoryId/edit', {
+      advisoryId: result.data.id,
+    })
+    bypassNavigationTo(editPath)
+    await navigate(editPath, {
       replace: true,
     })
     return true

@@ -22,7 +22,7 @@ async function mockBackend(
   await page
     .context()
     .addCookies([
-      { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+      { name: 'XSRF-TOKEN', value: 'token', domain: 'localhost', path: '/' },
     ])
   await page.route(
     '**/.well-known/appspecific/de.bsi.secvisogram.json',

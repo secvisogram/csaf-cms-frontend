@@ -29,7 +29,7 @@ async function mockBackend(
   await page
     .context()
     .addCookies([
-      { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+      { name: 'XSRF-TOKEN', value: 'token', domain: 'localhost', path: '/' },
     ])
   await page.route('**/oauth2/userinfo', (route) =>
     route.fulfill({ json: { groups: ['editor'] } }),
