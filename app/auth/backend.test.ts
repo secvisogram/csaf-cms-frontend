@@ -6,6 +6,7 @@ import {
   createNewVersion,
   createNewVersionWithFreshRevision,
   deleteAdvisory,
+  deleteAdvisoryWithFreshRevision,
   getAbout,
   getAdvisory,
   getTemplate,
@@ -109,6 +110,41 @@ describe('typed backend client', () => {
         method: 'DELETE',
       },
     )
+  })
+
+  it('deleteAdvisoryWithFreshRevision fetches the revision before DELETEing with it', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ advisoryId: '1', revision: 'rev-9' }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await deleteAdvisoryWithFreshRevision('1')
+
+    expect(result).toEqual({ ok: true, data: null })
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/v1/advisories/1',
+      undefined,
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/advisories/1?revision=rev-9',
+      { method: 'DELETE' },
+    )
+  })
+
+  it('deleteAdvisoryWithFreshRevision does not DELETE when the revision fetch fails', async () => {
+    const fetchMock = mockFetchResolving(404, { message: 'gone' })
+
+    const result = await deleteAdvisoryWithFreshRevision('1')
+
+    expect(result.ok).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('changeWorkflowState PATCHes with options as query params and resolves the new revision', async () => {

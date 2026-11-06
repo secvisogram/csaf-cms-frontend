@@ -458,6 +458,154 @@ test('shows an Edit link in the Actions column only for changeable advisories', 
   await expect(readOnly.getByRole('link', { name: 'Edit' })).toHaveCount(0)
 })
 
+test('shows Delete only for advisories marked deletable', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(
+    page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByRole('button', { name: 'Delete' }),
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole('row', { name: /Authentication bypass in Bar/ })
+      .getByRole('button', { name: 'Delete' }),
+  ).toHaveCount(0)
+})
+
+test.describe('delete advisory', () => {
+  async function mockDeleteBackend(
+    page: Page,
+    onDelete: (route: Route, revision: string | null) => Promise<boolean>,
+  ) {
+    await page
+      .context()
+      .addCookies([
+        { name: 'XSRF-TOKEN', value: 'token', url: 'http://localhost:5173' },
+      ])
+    const calls: string[] = []
+    let deleted = false
+    let listRequests = 0
+    await page.route('**/api/v1/advisories', (route) => {
+      listRequests += 1
+      return route.fulfill({
+        json: deleted ? [advisories[1]] : advisories,
+      })
+    })
+    await page.route('**/api/v1/advisories/advisory-1**', async (route) => {
+      const request = route.request()
+      if (request.method() === 'GET') {
+        calls.push('GET detail')
+        return route.fulfill({
+          json: {
+            ...advisories[0],
+            revision: 'rev-fresh',
+            csaf: {},
+          },
+        })
+      }
+
+      const revision = new URL(request.url()).searchParams.get('revision')
+      calls.push(`DELETE ${revision}`)
+      deleted = await onDelete(route, revision)
+    })
+    return {
+      calls,
+      getListRequestCount: () => listRequests,
+    }
+  }
+
+  test('cancelling confirmation sends no delete-flow requests', async ({
+    page,
+  }) => {
+    const backend = await mockDeleteBackend(page, (route) =>
+      route.fulfill({ status: 204 }).then(() => true),
+    )
+    await page.goto('/')
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toBe(
+        'Delete “Buffer overflow in Foo”? Its comments and audit history will also be permanently deleted.',
+      )
+      void dialog.dismiss()
+    })
+    const deleteFlowRequest = page
+      .waitForRequest(
+        (request) => {
+          const url = new URL(request.url())
+          return (
+            url.pathname === '/api/v1/advisories/advisory-1' &&
+            ['GET', 'DELETE'].includes(request.method())
+          )
+        },
+        { timeout: 1000 },
+      )
+      .catch(() => undefined)
+
+    await page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByRole('button', { name: 'Delete' })
+      .click()
+
+    expect(await deleteFlowRequest).toBeUndefined()
+    expect(backend.calls).toEqual([])
+    await expect(
+      page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+    ).toBeVisible()
+  })
+
+  test('deletes with a freshly fetched revision, shows success, and refreshes the list', async ({
+    page,
+  }) => {
+    const backend = await mockDeleteBackend(page, (route) =>
+      route.fulfill({ status: 204 }).then(() => true),
+    )
+    await page.goto('/')
+    await expect.poll(backend.getListRequestCount).toBe(1)
+    page.once('dialog', (dialog) => void dialog.accept())
+
+    await page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByRole('button', { name: 'Delete' })
+      .click()
+
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Advisory deleted' }),
+    ).toBeVisible()
+    expect(backend.calls).toEqual(['GET detail', 'DELETE rev-fresh'])
+    await expect.poll(backend.getListRequestCount).toBeGreaterThan(1)
+    await expect(
+      page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+    ).toHaveCount(0)
+  })
+
+  test('shows an error toast and keeps the row when deletion fails', async ({
+    page,
+  }) => {
+    const backend = await mockDeleteBackend(page, (route) =>
+      route
+        .fulfill({ status: 409, json: { message: 'conflict' } })
+        .then(() => false),
+    )
+    await page.goto('/')
+    page.once('dialog', (dialog) => void dialog.accept())
+
+    await page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByRole('button', { name: 'Delete' })
+      .click()
+
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'Could not delete the advisory' }),
+    ).toBeVisible()
+    expect(backend.calls).toEqual(['GET detail', 'DELETE rev-fresh'])
+    await expect(
+      page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+    ).toBeVisible()
+  })
+})
+
 test('the Edit link opens the advisory edit page', async ({ page }) => {
   await page.goto('/')
 

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { href, Link, useRevalidator } from 'react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { href, Link, useFetcher, useRevalidator } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import {
   columnFilteringFeature,
@@ -17,6 +17,7 @@ import {
 } from '@tanstack/react-table'
 import {
   createNewVersionWithFreshRevision,
+  deleteAdvisoryWithFreshRevision,
   listAdvisories,
   type AdvisoryListItem,
 } from '~/auth/backend'
@@ -29,6 +30,35 @@ export const clientLoader = async () => {
   return result.ok
     ? { advisories: result.data, loadFailed: false }
     : { advisories: [], loadFailed: true }
+}
+
+export type DeleteAdvisoryActionResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+/**
+ * Handles the dashboard's Delete action (currently the route's only action).
+ * Expects POST form data with a string `advisoryId`; returns `{ ok: true }` or
+ * `{ ok: false, error }`.
+ */
+export const clientAction = async ({
+  request,
+}: Route.ClientActionArgs): Promise<DeleteAdvisoryActionResult> => {
+  const formData = await request.formData()
+  const advisoryId = formData.get('advisoryId')
+  if (typeof advisoryId !== 'string') {
+    return { ok: false, error: 'Missing advisory ID' }
+  }
+
+  try {
+    const result = await deleteAdvisoryWithFreshRevision(advisoryId)
+    return result.ok ? { ok: true } : { ok: false, error: result.error.message }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 const features = tableFeatures({
@@ -46,6 +76,12 @@ const columnHelper = createColumnHelper<typeof features, AdvisoryListItem>()
 const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
   const { t } = useTranslation()
   const { notify } = useNotification()
+  const deleteFetcher = useFetcher<typeof clientAction>()
+  const isDeleting = deleteFetcher.state !== 'idle'
+  // Avoid showing the same toast again if an effect reruns for the same action result.
+  const handledDeleteResult = useRef<DeleteAdvisoryActionResult | undefined>(
+    undefined,
+  )
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [pendingVersionIds, setPendingVersionIds] = useState<string[]>([])
@@ -116,7 +152,8 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
           cell: ({ row }) =>
             row.original.changeable ||
             row.original.canCreateVersion ||
-            row.original.allowedStateChanges.length > 0 ? (
+            row.original.allowedStateChanges.length > 0 ||
+            row.original.deletable ? (
               <div className="flex gap-3">
                 {row.original.changeable && (
                   <Link
@@ -149,11 +186,33 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
                     {t('dashboard.actions.changeState')}
                   </button>
                 )}
+                {row.original.deletable && (
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={() => {
+                      const confirmed = window.confirm(
+                        t('dashboard.deleteConfirmation', {
+                          title: row.original.title,
+                        }),
+                      )
+                      if (confirmed) {
+                        deleteFetcher.submit(
+                          { advisoryId: row.original.advisoryId },
+                          { method: 'post' },
+                        )
+                      }
+                    }}
+                    className="relative z-10 underline disabled:opacity-50"
+                  >
+                    {t('dashboard.actions.delete')}
+                  </button>
+                )}
               </div>
             ) : null,
         }),
       ]),
-    [t, createVersion, pendingVersionIds],
+    [t, createVersion, pendingVersionIds, deleteFetcher.submit, isDeleting],
   )
 
   useEffect(() => {
@@ -161,6 +220,21 @@ const AdvisoryDashboard = ({ loaderData }: Route.ComponentProps) => {
       notify({ reason: 'dashboard.loadFailed', variant: 'error' })
     }
   }, [loaderData.loadFailed, notify])
+
+  useEffect(() => {
+    if (
+      !deleteFetcher.data ||
+      deleteFetcher.data === handledDeleteResult.current
+    ) {
+      return
+    }
+    handledDeleteResult.current = deleteFetcher.data
+    if (!deleteFetcher.data.ok) {
+      notify({ reason: 'dashboard.deleteFailed', variant: 'error' })
+      return
+    }
+    notify({ reason: 'dashboard.deleted', variant: 'success' })
+  }, [deleteFetcher.data, notify])
 
   const table = useTable({
     features,

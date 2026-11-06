@@ -33,7 +33,12 @@ export default {
       edit: 'Edit',
       createVersion: 'Create new version',
       changeState: 'Change state',
+      delete: 'Delete',
     },
+    deleteConfirmation:
+      'Delete “{{title}}”? Its comments and audit history will also be permanently deleted.',
+    deleted: 'Advisory deleted',
+    deleteFailed: 'Could not delete the advisory',
     versionCreated: 'New version created',
     versionCreateFailed: 'Could not create a new version',
   },

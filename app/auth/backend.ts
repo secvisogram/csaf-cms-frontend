@@ -104,6 +104,15 @@ export function deleteAdvisory(
   )
 }
 
+/** Re-fetches the advisory's revision immediately before deleting it. */
+export async function deleteAdvisoryWithFreshRevision(
+  advisoryId: string,
+): Promise<ApiResult<null>> {
+  const detail = await getAdvisory(advisoryId)
+  if (!detail.ok) return detail
+  return deleteAdvisory(advisoryId, detail.data.revision)
+}
+
 /** Resolves the new revision. */
 export function changeWorkflowState(
   advisoryId: string,
