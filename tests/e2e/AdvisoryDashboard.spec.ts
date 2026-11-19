@@ -1,4 +1,10 @@
-import { expect, test, type Page, type Route } from '@playwright/test'
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Route,
+} from '@playwright/test'
 
 const advisories = [
   {
@@ -26,6 +32,12 @@ const advisories = [
     currentReleaseDate: '2024-02-20',
   },
 ]
+
+/** Opens the row's overflow menu and returns the menu item with the given name. */
+async function menuItem(row: Locator, name: string) {
+  await row.getByRole('button', { name: /^More actions for/ }).click()
+  return row.page().getByRole('menuitem', { name })
+}
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -77,7 +89,7 @@ test('renders advisory rows with the expected columns, each linking to its edit 
   await expect(row.getByText('CSAFPX-2024-001')).toBeVisible()
   await expect(row.getByText('Draft')).toBeVisible()
   await expect(row.getByText('alice')).toBeVisible()
-  await expect(row.getByText('2024-01-15')).toBeVisible()
+  await expect(row.getByText('Jan 15, 2024')).toBeVisible()
 
   await row.getByRole('link', { name: 'Buffer overflow in Foo' }).click()
   await expect(page).toHaveURL('/advisory-1/edit')
@@ -170,7 +182,7 @@ test.describe('workflow-state change', () => {
 
     const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
     await expect(row.getByText('Draft')).toBeVisible()
-    await row.getByRole('button', { name: 'Change state' }).click()
+    await (await menuItem(row, 'Change state')).click()
 
     const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
     const options = await dialog
@@ -206,7 +218,12 @@ test.describe('workflow-state change', () => {
     const calls = await mockWorkflowBackend(page, 200)
     await page.goto('/')
 
-    await page.getByRole('button', { name: 'Change state' }).click()
+    await (
+      await menuItem(
+        page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+        'Change state',
+      )
+    ).click()
     const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
     await dialog.getByLabel('New workflow state').selectOption('Published')
     await dialog.getByLabel('Document tracking status').selectOption('Final')
@@ -225,13 +242,13 @@ test.describe('workflow-state change', () => {
     await page.goto('/')
 
     const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
-    await row.getByRole('button', { name: 'Change state' }).click()
+    await (await menuItem(row, 'Change state')).click()
     const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
     await dialog.getByLabel('New workflow state').selectOption('RfPublication')
     await dialog.getByLabel('Proposed time').fill('2030-05-06T07:08')
     await dialog.getByRole('button', { name: 'Change', exact: true }).click()
 
-    await expect(row.getByText('RfPublication')).toBeVisible()
+    await expect(row.getByText('Ready for publication')).toBeVisible()
     const proposedTime = encodeURIComponent(
       await page.evaluate(() => new Date('2030-05-06T07:08').toISOString()),
     )
@@ -246,7 +263,12 @@ test.describe('workflow-state change', () => {
     await mockWorkflowBackend(page, 200)
     await page.goto('/')
 
-    await page.getByRole('button', { name: 'Change state' }).click()
+    await (
+      await menuItem(
+        page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+        'Change state',
+      )
+    ).click()
     const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
     await dialog.getByLabel('New workflow state').selectOption('RfPublication')
 
@@ -262,7 +284,12 @@ test.describe('workflow-state change', () => {
     await mockWorkflowBackend(page, 200)
     await page.goto('/')
 
-    await page.getByRole('button', { name: 'Change state' }).click()
+    await (
+      await menuItem(
+        page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+        'Change state',
+      )
+    ).click()
     const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
     await dialog.getByLabel('New workflow state').selectOption('AutoPublish')
 
@@ -277,7 +304,7 @@ test.describe('workflow-state change', () => {
     await page.goto('/')
 
     const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
-    await row.getByRole('button', { name: 'Change state' }).click()
+    await (await menuItem(row, 'Change state')).click()
     const dialog = page.getByRole('dialog', { name: 'Change workflow state' })
     await dialog.getByLabel('New workflow state').selectOption('Review')
     await dialog.getByRole('button', { name: 'Change', exact: true }).click()
@@ -297,7 +324,7 @@ test.describe('workflow-state change', () => {
     await expect(
       page
         .getByRole('row', { name: /Authentication bypass in Bar/ })
-        .getByRole('button', { name: 'Change state' }),
+        .getByRole('button', { name: /^More actions for/ }),
     ).toHaveCount(0)
   })
 })
@@ -366,17 +393,16 @@ test('shows Create new version only for advisories with canCreateVersion', async
   await mockPublishedAdvisory(page, (route) => route.fulfill({ body: 'x' }))
   await page.goto('/')
 
-  const button = page.getByRole('button', { name: 'Create new version' })
-  await expect(button).toHaveCount(2)
   await expect(
-    page
-      .getByRole('row', { name: /Privilege escalation in Baz/ })
-      .getByRole('button', { name: 'Create new version' }),
+    await menuItem(
+      page.getByRole('row', { name: /Privilege escalation in Baz/ }),
+      'Create new version',
+    ),
   ).toBeVisible()
   await expect(
     page
       .getByRole('row', { name: /Authentication bypass in Bar/ })
-      .getByRole('button', { name: 'Create new version' }),
+      .getByRole('button', { name: /^More actions for/ }),
   ).toHaveCount(0)
 })
 
@@ -399,10 +425,12 @@ test('creates a new version with a freshly fetched revision, shows a success toa
   await page.goto('/')
   await expect.poll(() => listRequests.length).toBe(1)
 
-  await page
-    .getByRole('row', { name: /Privilege escalation in Baz/ })
-    .getByRole('button', { name: 'Create new version' })
-    .click()
+  await (
+    await menuItem(
+      page.getByRole('row', { name: /Privilege escalation in Baz/ }),
+      'Create new version',
+    )
+  ).click()
 
   await expect(
     page.getByRole('status').filter({ hasText: 'New version created' }),
@@ -421,10 +449,12 @@ test('shows an error toast and does not refresh the list when creating a new ver
   await page.goto('/')
   await expect.poll(() => listRequests.length).toBe(1)
 
-  await page
-    .getByRole('row', { name: /Privilege escalation in Baz/ })
-    .getByRole('button', { name: 'Create new version' })
-    .click()
+  await (
+    await menuItem(
+      page.getByRole('row', { name: /Privilege escalation in Baz/ }),
+      'Create new version',
+    )
+  ).click()
 
   await expect(
     page
@@ -462,14 +492,15 @@ test('shows Delete only for advisories marked deletable', async ({ page }) => {
   await page.goto('/')
 
   await expect(
-    page
-      .getByRole('row', { name: /Buffer overflow in Foo/ })
-      .getByRole('button', { name: 'Delete' }),
+    await menuItem(
+      page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+      'Delete',
+    ),
   ).toBeVisible()
   await expect(
     page
       .getByRole('row', { name: /Authentication bypass in Bar/ })
-      .getByRole('button', { name: 'Delete' }),
+      .getByRole('button', { name: /^More actions for/ }),
   ).toHaveCount(0)
 })
 
@@ -541,10 +572,12 @@ test.describe('delete advisory', () => {
       )
       .catch(() => undefined)
 
-    await page
-      .getByRole('row', { name: /Buffer overflow in Foo/ })
-      .getByRole('button', { name: 'Delete' })
-      .click()
+    await (
+      await menuItem(
+        page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+        'Delete',
+      )
+    ).click()
 
     expect(await deleteFlowRequest).toBeUndefined()
     expect(backend.calls).toEqual([])
@@ -563,10 +596,12 @@ test.describe('delete advisory', () => {
     await expect.poll(backend.getListRequestCount).toBe(1)
     page.once('dialog', (dialog) => void dialog.accept())
 
-    await page
-      .getByRole('row', { name: /Buffer overflow in Foo/ })
-      .getByRole('button', { name: 'Delete' })
-      .click()
+    await (
+      await menuItem(
+        page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+        'Delete',
+      )
+    ).click()
 
     await expect(
       page.getByRole('status').filter({ hasText: 'Advisory deleted' }),
@@ -589,10 +624,12 @@ test.describe('delete advisory', () => {
     await page.goto('/')
     page.once('dialog', (dialog) => void dialog.accept())
 
-    await page
-      .getByRole('row', { name: /Buffer overflow in Foo/ })
-      .getByRole('button', { name: 'Delete' })
-      .click()
+    await (
+      await menuItem(
+        page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+        'Delete',
+      )
+    ).click()
 
     await expect(
       page
@@ -652,7 +689,7 @@ test('the Actions column header is not a sort control and is not filtered', asyn
   await expect(rows.nth(1)).toContainText('Buffer overflow in Foo')
   await expect(rows.nth(2)).toContainText('Authentication bypass in Bar')
 
-  await page.getByRole('textbox', { name: 'Filter advisories' }).fill('Edit')
+  await page.getByRole('textbox', { name: 'Filter advisories' }).fill('Delete')
   await expect(page.getByRole('row')).toHaveCount(1)
 })
 
@@ -677,4 +714,280 @@ test('shows the New button for users in the author group', async ({ page }) => {
   await page.goto('/')
 
   await expect(page.getByTestId('new_document_button')).toHaveText('New')
+})
+
+test('shows the access of each advisory as text, derived from changeable', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  await expect(page.getByRole('columnheader', { name: 'Access' })).toBeVisible()
+  await expect(
+    page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByText('Editable'),
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole('row', { name: /Authentication bypass in Bar/ })
+      .getByText('Read-only'),
+  ).toBeVisible()
+})
+
+test('sorts by access', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByRole('button', { name: 'Access' }).click()
+
+  const rows = page.getByRole('row')
+  await expect(rows.nth(1)).toContainText('Buffer overflow in Foo')
+  await page.getByRole('button', { name: 'Access' }).click()
+  await expect(rows.nth(1)).toContainText('Authentication bypass in Bar')
+})
+
+test('sorts workflow states by lifecycle order, not alphabetically', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  await page.getByRole('button', { name: 'Workflow State' }).click()
+
+  // Alphabetically Approved would come first.
+  await expect(page.getByRole('row').nth(1)).toContainText('Draft')
+})
+
+test('the state chips show counts and filter the table', async ({ page }) => {
+  await page.goto('/')
+
+  const group = page.getByRole('group', { name: 'Filter by workflow state' })
+  await expect(group.getByRole('button', { name: 'All 2' })).toBeVisible()
+  await expect(group.getByRole('button', { name: 'Draft 1' })).toBeVisible()
+  await expect(group.getByRole('button', { name: 'Review 0' })).toBeDisabled()
+
+  await group.getByRole('button', { name: 'Approved 1' }).click()
+
+  await expect(
+    page.getByRole('row', { name: /Authentication bypass in Bar/ }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('row', { name: /Buffer overflow in Foo/ }),
+  ).toHaveCount(0)
+  await expect(
+    group.getByRole('button', { name: 'Approved 1' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+
+  await group.getByRole('button', { name: 'All 2' }).click()
+  await expect(page.getByRole('row')).toHaveCount(3)
+})
+
+test('the state chip counts follow the search text', async ({ page }) => {
+  await page.goto('/')
+
+  await page.getByRole('textbox', { name: 'Filter advisories' }).fill('alice')
+
+  const group = page.getByRole('group', { name: 'Filter by workflow state' })
+  await expect(group.getByRole('button', { name: 'All 1' })).toBeVisible()
+  await expect(group.getByRole('button', { name: 'Approved 0' })).toBeDisabled()
+})
+
+test('clears the search with the clear button', async ({ page }) => {
+  await page.goto('/')
+  const search = page.getByRole('textbox', { name: 'Filter advisories' })
+
+  await search.fill('bob')
+  await expect(page.getByRole('row')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Clear filter' }).click()
+
+  await expect(search).toHaveValue('')
+  await expect(page.getByRole('row')).toHaveCount(3)
+  await expect(page.getByRole('button', { name: 'Clear filter' })).toHaveCount(
+    0,
+  )
+})
+
+test('shows a no-match state with a reset button', async ({ page }) => {
+  await page.goto('/')
+
+  await page
+    .getByRole('textbox', { name: 'Filter advisories' })
+    .fill('does not exist')
+  await expect(page.getByText('No advisories match your filter.')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Reset filters' }).click()
+  await expect(page.getByRole('row')).toHaveCount(3)
+  await expect(page.getByText('No advisories match your filter.')).toHaveCount(
+    0,
+  )
+})
+
+test('shows an empty state when there are no advisories', async ({ page }) => {
+  await page.route('**/api/v1/advisories', (route) =>
+    route.fulfill({ json: [] }),
+  )
+  await page.goto('/')
+
+  await expect(page.getByText('There are no advisories yet.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reset filters' })).toHaveCount(
+    0,
+  )
+})
+
+test('shows the full date and time as ISO value, and a dash without a release date', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/advisories', (route) =>
+    route.fulfill({
+      json: [
+        {
+          ...advisories[0],
+          currentReleaseDate: '2026-11-02T14:17:30.890946107Z',
+        },
+        { ...advisories[1], currentReleaseDate: undefined },
+      ],
+    }),
+  )
+  await page.goto('/')
+
+  const time = page
+    .getByRole('row', { name: /Buffer overflow in Foo/ })
+    .locator('time')
+  await expect(time).toHaveAttribute(
+    'datetime',
+    '2026-11-02T14:17:30.890946107Z',
+  )
+  await expect(time).toContainText('Nov 2, 2026')
+  await expect(
+    page
+      .getByRole('row', { name: /Authentication bypass in Bar/ })
+      .locator('time'),
+  ).toHaveCount(0)
+})
+
+test('an unknown workflow state falls back to its raw value', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/advisories', (route) =>
+    route.fulfill({ json: [{ ...advisories[0], workflowState: 'Frozen' }] }),
+  )
+  await page.goto('/')
+
+  await expect(
+    page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByText('Frozen'),
+  ).toBeVisible()
+  await expect(
+    page
+      .getByRole('group', { name: 'Filter by workflow state' })
+      .getByRole('button', {
+        name: 'Frozen 1',
+      }),
+  ).toBeVisible()
+})
+
+test.describe('row overflow menu', () => {
+  const menuButton = (page: Page) =>
+    page
+      .getByRole('row', { name: /Buffer overflow in Foo/ })
+      .getByRole('button', { name: /^More actions for/ })
+
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/v1/advisories', (route) =>
+      route.fulfill({
+        json: [{ ...advisories[0], allowedStateChanges: ['Review'] }],
+      }),
+    )
+  })
+
+  test('opens with the keyboard, moves with arrow keys and closes with Escape', async ({
+    page,
+  }) => {
+    await page.goto('/')
+
+    await menuButton(page).focus()
+    await page.keyboard.press('Enter')
+    await expect(menuButton(page)).toHaveAttribute('aria-expanded', 'true')
+    const items = page.getByRole('menuitem')
+    await expect(items).toHaveText([
+      'Create new version',
+      'Change state',
+      'Delete',
+    ])
+    await expect(items.nth(0)).toBeFocused()
+
+    await page.keyboard.press('ArrowDown')
+    await expect(items.nth(1)).toBeFocused()
+    await page.keyboard.press('End')
+    await expect(items.nth(2)).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(items.nth(0)).toBeFocused()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('menu')).not.toBeVisible()
+    await expect(menuButton(page)).toHaveAttribute('aria-expanded', 'false')
+    await expect(menuButton(page)).toBeFocused()
+  })
+
+  test('opening the menu does not open the advisory', async ({ page }) => {
+    await page.goto('/')
+
+    await menuButton(page).click()
+    await expect(page.getByRole('menu')).toBeVisible()
+    await expect(page).toHaveURL('/')
+  })
+
+  test('selecting an item closes the menu and runs the action', async ({
+    page,
+  }) => {
+    await page.goto('/')
+
+    await menuButton(page).click()
+    await page.getByRole('menuitem', { name: 'Change state' }).click()
+
+    await expect(page.getByRole('menu')).not.toBeVisible()
+    await expect(
+      page.getByRole('dialog', { name: 'Change workflow state' }),
+    ).toBeVisible()
+  })
+
+  test('keeps Delete last, after a separator', async ({ page }) => {
+    await page.goto('/')
+
+    await menuButton(page).click()
+    await expect(page.getByRole('separator')).toHaveCount(1)
+    await expect(page.getByRole('menuitem').last()).toHaveText('Delete')
+  })
+})
+
+test('clicking anywhere on a row opens the advisory', async ({ page }) => {
+  await page.goto('/')
+
+  const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+  const box = await row.boundingBox()
+  // Right of the title, over the owner cell, away from the actions.
+  await row.click({ position: { x: box!.width * 0.55, y: box!.height / 2 } })
+
+  await expect(page).toHaveURL('/advisory-1/edit')
+})
+
+test('stacks rows as cards on narrow screens and keeps all actions', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.route('**/api/v1/advisories', (route) =>
+    route.fulfill({ json: advisories }),
+  )
+  await page.goto('/')
+
+  const row = page.getByRole('row', { name: /Buffer overflow in Foo/ })
+  await expect(row.getByText('Draft')).toBeVisible()
+  await expect(row.getByText('Editable')).toBeVisible()
+  await expect(row.getByRole('link', { name: 'Edit' })).toBeVisible()
+  const box = await row.boundingBox()
+  expect(box?.width).toBeLessThanOrEqual(390)
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
 })
