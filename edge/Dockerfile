@@ -1,6 +1,6 @@
 # Build from the repository root. The editor registry token is required only for
 # the BuildKit secret mount on the editor dependency-install step.
-FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS build
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS build
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ ARG VITE_APP_VERSION
 ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 RUN npm run build:prod
 
-FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03 AS runtime
+FROM nginx/nginx-unprivileged:stable-alpine@sha256:0c53a1f2890c3526bfd201440f0fd3970e5b78f80630f58284aad0d34b5ec7bd AS runtime
 
 COPY --chown=nginx:nginx edge/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --chown=nginx:nginx --chmod=755 edge/15-edge-origin.envsh /docker-entrypoint.d/15-edge-origin.envsh
